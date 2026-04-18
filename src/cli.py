@@ -1,6 +1,10 @@
+# sleepy guard app
+# real-time driver monitoring using face landmarks and adaptive scoring
+
 import argparse
 
 
+# function that handles a specific step in the pipeline
 def parse_args():
     parser = argparse.ArgumentParser(description="Single-executable adaptive sleepy driver monitor for Raspberry Pi and Linux PC.")
     parser.add_argument("--camera", type=int, default=0)
@@ -15,18 +19,10 @@ def parse_args():
     parser.add_argument("--log-csv", action="store_true")
 
     parser.add_argument("--calibration-seconds", type=int, default=25)
-    parser.add_argument("--startup-baseline-seconds", type=int, default=12)
-    parser.add_argument("--startup-baseline-min-frames", type=int, default=90)
-    parser.add_argument("--rebuild-baseline-on-start", action="store_true")
-
     parser.add_argument("--ear-threshold", type=float, default=0.23)
     parser.add_argument("--yawn-mar-threshold", type=float, default=0.45)
     parser.add_argument("--yawn-frames-threshold", type=int, default=12)
-    parser.add_argument("--warning-threshold", type=float, default=0.42)
-    parser.add_argument("--drowsy-threshold", type=float, default=0.58)
     parser.add_argument("--alarm-threshold", type=float, default=0.72)
-    parser.add_argument("--status-hold-frames", type=int, default=10)
-    parser.add_argument("--no-face-hold-frames", type=int, default=18)
     parser.add_argument("--attention-window", type=int, default=240)
 
     parser.add_argument("--min-detection-confidence", type=float, default=0.5)
