@@ -18,7 +18,6 @@ Real-time driver drowsiness detection system developed for deployment on edge de
 - NumPy
 
 ## Usage
-to be added 
-
-Run:
-to be added
+```bash
+python3 run_sleepy_guard.py --show-ui --mirror --rebuild-baseline-on-start
+```
