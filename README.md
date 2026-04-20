@@ -1,7 +1,10 @@
 # DashSentinel
 Real-time driver drowsiness detection system developed for deployment on edge devices.
 
-Tested on Intel N100 and NVIDIA Jetson Orin Nano
+Tested devices:
+- Intel N100
+- NVIDIA Jetson Orin Nano
+- Raspberry Pi 5
 
 ## Features
 - Real-time face, eye, and behavior monitoring
