@@ -6,6 +6,9 @@ Tested devices:
 - NVIDIA Jetson Orin Nano
 - Raspberry Pi 5
 
+- Note:
+MediaPipe-based landmark detection requires a 64-bit environment and is not supported on older Raspberry Pi devices (e.g., Pi 3/4 32-bit).
+
 ## Features
 - Real-time face, eye, and behavior monitoring
 - Adaptive user baseline calibration
