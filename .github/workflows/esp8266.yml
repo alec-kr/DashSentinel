@@ -17,5 +17,5 @@ jobs:
 
       - name: Build firmware
         run: |
-          cd esp8266_display
+          cd DisplayModule
           pio run
