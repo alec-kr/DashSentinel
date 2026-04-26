@@ -1,4 +1,4 @@
-name: ESP8266 Build Test
+name: DisplayModule Build Test
 
 on:
   push:
@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup PlatformIO
         run: |
