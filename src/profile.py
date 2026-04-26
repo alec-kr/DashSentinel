@@ -67,6 +67,17 @@ class DriverProfile:
         self.sessions = 0
         self.total_updates = 0
         self._load()
+    
+    # save profile to disk
+    def save(self):
+        import json, os
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        with open(self.path, "w") as f:
+            json.dump({
+                "sessions": self.sessions,
+                "total_updates": self.total_updates,
+                "stats": {k: v.to_dict() for k, v in self.stats.items()}
+            }, f, indent=2)
 
 # load data from disk (profile or config)
     def _load(self):
@@ -85,22 +96,15 @@ class DriverProfile:
         for key, (default_mean, default_var) in self.DEFAULTS.items():
             self.stats[key] = RunningStat.from_dict(saved.get(key), default_mean, default_var)
 
-# function that handles a specific step in the pipeline
-    def begin_session(self):
-        self.sessions += 1
+    # reset baseline completely (for new user / fresh calibration)
+    def reset_baseline(self):
+        self.total_updates = 0
+        self.stats = {}
 
-# persist data to disk for future runs
-    def save(self):
-        ensure_parent(self.path)
-        payload = {
-            "sessions": self.sessions,
-            "total_updates": self.total_updates,
-            "stats": {k: v.to_dict() for k, v in self.stats.items()},
-        }
-        with open(self.path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2)
-
-# function that handles a specific step in the pipeline
+        for key, (mean, var) in self.DEFAULTS.items():
+            self.stats[key] = RunningStat(mean, var, 0)
+    
+    # function that handles a specific step in the pipeline
     def mean(self, key: str) -> float:
         return self.stats[key].mean
 
@@ -113,3 +117,7 @@ class DriverProfile:
         for key in self.DEFAULTS.keys():
             self.stats[key].update(float(features[key]))
         self.total_updates += 1
+
+# function that handles a specific step in the pipeline
+    def begin_session(self):
+        self.sessions += 1

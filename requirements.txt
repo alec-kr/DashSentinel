@@ -3,3 +3,4 @@ mediapipe
 numpy
 # Optional on Raspberry Pi if you want GPIO buzzer support:
 # RPi.GPIO
+pyserial

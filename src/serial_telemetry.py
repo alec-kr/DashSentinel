@@ -1,0 +1,54 @@
+import time
+
+
+class SerialTelemetry:
+    def __init__(self, enabled=False, port="/dev/ttyUSB0", baud=115200, interval=0.5):
+        self.enabled = enabled
+        self.port = port
+        self.baud = baud
+        self.interval = interval
+        self.last_send = 0.0
+        self.serial = None
+
+        if not self.enabled:
+            return
+
+        try:
+            import serial
+            self.serial = serial.Serial(self.port, self.baud, timeout=0.1)
+            time.sleep(2.0)
+            print(f"[serial] connected to esp8266 on {self.port} at {self.baud} baud")
+        except Exception as exc:
+            self.serial = None
+            print(f"[serial] could not open esp8266 serial port {self.port}: {exc}")
+
+    def send(self, status, attentiveness, drowsy_score):
+        if not self.enabled or self.serial is None:
+            return
+
+        now = time.time()
+        if now - self.last_send < self.interval:
+            return
+
+        self.last_send = now
+
+        try:
+            # simple csv-style line for esp8266 parsing
+            msg = f"{status},{attentiveness:.1f},{drowsy_score:.3f}\n"
+            self.serial.write(msg.encode("utf-8"))
+            self.serial.flush()
+        except Exception as exc:
+            print(f"[serial] send failed: {exc}")
+            try:
+                self.serial.close()
+            except Exception:
+                pass
+            self.serial = None
+
+    def close(self):
+        if self.serial is not None:
+            try:
+                self.serial.close()
+            except Exception:
+                pass
+            self.serial = None
