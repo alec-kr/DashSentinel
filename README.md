@@ -1,6 +1,8 @@
 # Sleepy Guard
 
+----Work in progress on README----
 A modular single-execution adaptive driver drowsiness monitor for Raspberry Pi and Linux PC.
+
 
 ## Features
 - One execution script: `run_sleepy_guard.py`
