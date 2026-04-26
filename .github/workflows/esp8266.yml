@@ -1,0 +1,21 @@
+name: ESP8266 Build Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PlatformIO
+        run: |
+          pip install platformio
+
+      - name: Build firmware
+        run: |
+          cd esp8266_display
+          pio run
