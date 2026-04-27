@@ -19,3 +19,9 @@ jobs:
         run: |
           cd DisplayModule
           pio run
+        
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: displaymodule-firmware
+          path: DisplayModule/.pio/build/**/firmware.bin
