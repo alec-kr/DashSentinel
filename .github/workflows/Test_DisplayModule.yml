@@ -16,9 +16,8 @@ jobs:
           pip install platformio
 
       - name: Build firmware
-        run: |
-          cd DisplayModule
-          pio run
+        working-directory: DisplayModule
+        run: pio run
         
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
