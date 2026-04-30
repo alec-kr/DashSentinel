@@ -6,6 +6,7 @@ import time
 import serial
 
 class SerialTelemetry:
+    """handle serial communication with esp8266 for telemetry and button commands"""
     # default port can be changed with --serial-port, 
     # baud rate can be changed with --serial-baud, 
     # and send interval can be changed with --serial-interval

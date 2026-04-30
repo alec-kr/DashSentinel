@@ -3,9 +3,8 @@ import time
 
 from .utils import ensure_parent, now_ts
 
-
-# handle logging and features to a CSV file
 class EventLogger:
+    """handle logging and features to a CSV file"""
     def __init__(self, path: str, enabled: bool):
         self.path = path
         self.enabled = enabled
@@ -16,7 +15,16 @@ class EventLogger:
             if not os.path.exists(path):
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(
-                        "timestamp,status,confidence,drowsy_score,attentiveness,ear,mar,blink_rate,roll_deg,yaw_ratio,pitch_ratio,closed_frames_norm,yawn_flag,posture_flag,yawn_count\n"
+                        ",".join(
+                            (
+                                "timestamp", "status", "confidence", "drowsy_score",
+                                "attentiveness", "ear", "mar", "blink_rate",
+                                "roll_deg", "yaw_ratio", "pitch_ratio",
+                                "closed_frames_norm", "yawn_flag", "posture_flag",
+                                "yawn_count",
+                            )
+                        )
+                        + "\n"
                     )
 
     def write_periodic(self, status: str, confidence: float, drowsy_score: float, attentiveness: float, features: dict, every_seconds: float = 1.0):
