@@ -1,0 +1,5 @@
+[MAIN]
+extension-pkg-allow-list=cv2
+
+[TYPECHECK]
+generated-members=cv2.*
