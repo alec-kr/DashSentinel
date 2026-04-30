@@ -161,3 +161,17 @@ class AdaptiveScorer:
             should_alarm=should_alarm,
             reason=reason,
         )
+    
+    def reset_stats(self):
+        self.attention_history.clear()
+        self.score_history.clear()
+
+        # seed clean history so attentiveness immediately returns to 100
+        self.attention_history.append(100.0)
+        self.score_history.append(0.0)
+
+        # force state machine back to alert
+        self.state = "ALERT"
+        self.pending_state = None
+        self.pending_frames = 0
+        self.no_face_frames = 0

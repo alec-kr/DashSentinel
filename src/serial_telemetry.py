@@ -45,6 +45,25 @@ class SerialTelemetry:
                 pass
             self.serial = None
 
+
+    def read_esp_command(self):
+        if self.serial is None:
+            return None
+
+        if self.serial.in_waiting <= 0:
+            return None
+
+        line = self.serial.readline().decode("utf-8", errors="ignore").strip()
+
+        if line == "BTN_RESET_BASELINE":
+            return "RESET_BASELINE"
+
+        if line == "BTN_RESET_STATS":
+            return "RESET_STATS"
+
+        return None
+    
+
     def close(self):
         if self.serial is not None:
             try:

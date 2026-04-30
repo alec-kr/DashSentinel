@@ -184,3 +184,8 @@ class FeatureExtractor:
             "posture_flag": float(posture_flag),
             "yawn_count": int(self.yawn_count),
         }
+    
+    def reset_stats(self):
+        self.reset()
+        self.yawn_count = 0
+        self.last_yawn_time = 0.0

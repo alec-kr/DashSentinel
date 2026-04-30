@@ -266,6 +266,31 @@ class DashSentinelApp:
                     self._trigger_alarm_if_needed(score)
                     self.telemetry.send(score.status, score.attentiveness, score.drowsy_score)
 
+                    cmd = self.telemetry.read_esp_command()
+
+                    if cmd == "RESET_BASELINE":
+                        self.profile.reset_baseline()
+                        self.profile.save()
+                        self.scorer.start_time = time.time()
+                        print("baseline reset requested from esp8266")
+
+                    elif cmd == "RESET_STATS":
+                        self.scorer.reset_stats()
+                        self.extractor.reset_stats()
+
+                        # also reset all features that have been tracked over time
+                        score = ScoreOutput(
+                            phase="ACTIVE",
+                            status="ALERT",
+                            confidence=1.0,
+                            drowsy_score=0.0,
+                            attentiveness=100.0,
+                            should_alarm=False,
+                            reason="stats reset",
+                        )
+
+                        print("full stats reset requested from esp8266")
+
                     if self.args.show_ui and not self.args.headless:
                         self._draw_overlay(display_frame, score, features, fps)
                         cv2.imshow(self.args.window_name, display_frame)
