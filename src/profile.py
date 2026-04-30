@@ -1,17 +1,19 @@
+"""manages user-specific profile data for adaptive scoring and thresholds"""
+
 import json
 import os
 
 import numpy as np
 
-# maintains running statistics to be used for adaptive/personalized scoring and thresholds
 class RunningStat:
+    """maintains running statistics to be used for adaptive/personalized scoring and thresholds"""
     def __init__(self, mean=0.0, var=1.0, count=0.0):
         self.mean = float(mean)
         self.m2 = float(max(var, 1e-6) * max(count, 1.0))
         self.count = float(count)
 
-    # update profile with new data
     def update(self, x: float):
+        """update profile with new data"""
         self.count += 1.0
         delta = x - self.mean
         self.mean += delta / self.count
@@ -20,19 +22,23 @@ class RunningStat:
 
     @property
     def var(self):
+        """return current variance (with small epsilon to prevent division issues)"""
         if self.count <= 1:
             return 1e-4
         return max(self.m2 / (self.count - 1.0), 1e-4)
 
     @property
     def std(self):
+        """return standard deviation"""
         return float(np.sqrt(self.var))
 
     def to_dict(self):
+        """convert to dict for JSON storage"""
         return {"mean": self.mean, "var": self.var, "count": self.count}
 
     @classmethod
     def from_dict(cls, data, default_mean, default_var):
+        """create RunningStat from dict, with defaults if data is missing or invalid"""
         if not data:
             return cls(default_mean, default_var, 0.0)
 

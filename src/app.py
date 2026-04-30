@@ -23,6 +23,7 @@ from .utils import now_ts
 
 
 class DashSentinelApp:
+    """main application class that encapsulates system"""
     def __init__(self, args):
         self.args = args
         self.running = True
@@ -199,8 +200,8 @@ class DashSentinelApp:
             cv2.putText(
                 frame,
                 (
-                    f"roll: {features['roll_deg']:.1f}"
-                    f"yaw: {features['yaw_ratio']:.2f}"
+                    f"roll: {features['roll_deg']:.1f} "
+                    f"yaw: {features['yaw_ratio']:.2f} "
                     f"pitch: {features['pitch_ratio']:.2f}"
                 ),
                 (18, 278),
@@ -212,8 +213,8 @@ class DashSentinelApp:
             cv2.putText(
                 frame,
                 (
-                    f"closed: {features['closed_frames_norm']:.2f}"
-                    f"pose: {features.get('bad_pose_norm', 0.0):.2f}"
+                    f"closed: {features['closed_frames_norm']:.2f} "
+                    f"pose: {features.get('bad_pose_norm', 0.0):.2f} "
                     f"away: {features.get('look_away_norm', 0.0):.2f}"
                 ),
                 (18, 304),
@@ -255,11 +256,9 @@ class DashSentinelApp:
     # overlay for the startup baseline phase with instructions and progress
     def _draw_baseline_overlay(self, frame, features, fps, elapsed):
         # the remaining time is just for user feedback, it doesn't affect when
-        # the baseline phase actually ends since we also require a minimum number of valid frames to be collected
+        # the baseline phase actually ends
         remaining = max(0.0, self.args.startup_baseline_seconds - elapsed)
 
-        # during baseline collection, we want to encourage the user to look at the camera with a neutral face
-        # and avoid excessive blinking or yawning, since those frames won't be as useful for building an accurate profile
         cv2.putText(
             frame,
             "phase: startup baseline",
@@ -297,7 +296,7 @@ class DashSentinelApp:
             2,
         )
 
-        # show key features to help the user understand what the system is seeing and encourage them to maintain a good baseline posture
+        # show key features during baseline phase
         if features is not None:
             cv2.putText(
                 frame,
@@ -329,7 +328,7 @@ class DashSentinelApp:
                 2,
             )
 
-    # during baseline phase, only use frames where the driver is looking at the camera with a neutral expression and not excessively blinking or yawning
+    # during baseline phase, only use frames where the driver is looking at the camera neutrally
     def _feature_is_valid_for_baseline(self, features):
         return (
             features["closed_frames_norm"] < 0.15
@@ -337,7 +336,7 @@ class DashSentinelApp:
             and features["posture_flag"] < 0.5
         )
 
-    # the baseline phase should only end once we've collected enough valid frames and enough time has passed to ensure a good representation of the driver's normal state
+    # the baseline phase should only end once we've collected enough valid frames
     def _startup_baseline_complete(self, elapsed):
         enough_time = elapsed >= self.args.startup_baseline_seconds
         enough_frames = (
@@ -387,7 +386,7 @@ class DashSentinelApp:
                     self.profile.update_from_alert_frame(features)
                     self.baseline_frames_collected += 1
 
-            # show overlay with progress during baseline phase, or print to console if UI is disabled
+            # show overlay with progress during baseline phase, or print to console
             elapsed = time.time() - self.baseline_started_at
             if self.args.show_ui and not self.args.headless:
                 self._draw_baseline_overlay(display_frame, features, fps, elapsed)
@@ -398,7 +397,7 @@ class DashSentinelApp:
                     break
             else:
                 sys.stdout.write(
-                    f"\r[{now_ts()}] building baseline frames={self.baseline_frames_collected} elapsed={elapsed:.1f}s   "
+                    f"\r[{now_ts()}] building baseline frames={self.baseline_frames_collected} elapsed={elapsed:.1f}s "
                 )
                 sys.stdout.flush()
 
@@ -413,6 +412,8 @@ class DashSentinelApp:
         self.extractor.reset()
 
     def run(self):
+        """main loop to process video frames, extract features, 
+        compute scores, log events, and handle telemetry"""
         cap = self._open_camera()
         mp_face_mesh = mp.solutions.face_mesh
         frame_count = 0

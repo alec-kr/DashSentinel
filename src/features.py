@@ -1,3 +1,5 @@
+"""handles feature extraction from facial landmarks"""
+
 import time
 from collections import deque
 
@@ -77,14 +79,16 @@ def estimate_head_pose(landmarks, w, h):
     # roll is the tilt of the head (positive = right ear down, negative = left ear down)
     roll_deg = np.degrees(np.arctan2(dy, dx)) if abs(dx) > 1e-6 else 0.0
 
-    # yaw is the left-right rotation of the head. estimating by comparing distances from nose to cheeks.
+    # yaw is the left-right rotation of the head
+    # estimating by distance from nose to cheeks
     left_dist = euclidean(nose, left_cheek)
     right_dist = euclidean(nose, right_cheek)
     yaw_ratio = 0.0
     if (left_dist + right_dist) > 1e-6:
         yaw_ratio = (right_dist - left_dist) / (right_dist + left_dist)
 
-    # pitch is the up-down rotation of the head. estimating by comparing vertical position of nose to eye center, normalized by face height.
+    # pitch is the up-down rotation of the head. 
+    # estimating by comparing vertical position of nose to eye center
     face_vertical = max(mouth_center[1] - eye_center[1], 1e-6)
     pitch_ratio = (nose[1] - eye_center[1]) / face_vertical
     return float(roll_deg), float(yaw_ratio), float(pitch_ratio)
@@ -169,7 +173,7 @@ class FeatureExtractor:
         # current timestamp used for fps or timing logic
         now = time.time()
 
-        # if the smoothed EAR is below the threshold, consider the eye closed and update counters/timestamps accordingly
+        # if the smoothed EAR is below the threshold, consider the eye closed
         if ear_smoothed < self.ear_threshold:
             if not self.eye_closed:
                 self.eye_closed = True
@@ -190,10 +194,13 @@ class FeatureExtractor:
         if mar > self.yawn_mar_threshold:
             self.mouth_open_frames += 1
         else:
-            if self.mouth_open_frames >= self.yawn_frames_threshold and now - self.last_yawn_time > 2.0:
+            if (
+                self.mouth_open_frames >= self.yawn_frames_threshold
+                and now - self.last_yawn_time > 2.0
+            ):
                 self.yawn_count += 1
                 self.last_yawn_time = now
-            self.mouth_open_frames = 0
+                self.mouth_open_frames = 0
 
         # head pose estimation to detect posture issues (looking away, tilting, etc.)
         yawn_flag = 1.0 if self.mouth_open_frames >= self.yawn_frames_threshold else 0.0
@@ -240,7 +247,7 @@ class FeatureExtractor:
         head_back_norm = clamp(self.head_back_frames / 18.0, 0.0, 1.0)
 
         posture_flag = 1.0 if self.bad_pose_frames >= 8 else 0.0
-        
+
         closed_frames_norm = clamp(self.closed_frames / 30.0, 0.0, 1.0)
 
         return {
@@ -249,7 +256,6 @@ class FeatureExtractor:
             "blink_rate": float(blink_rate),
             "closed_frames_norm": float(closed_frames_norm),
             "yawn_flag": float(yawn_flag),
-            "posture_flag": float(posture_flag),
             "yawn_count": int(self.yawn_count),
             "roll_deg": float(roll_smooth),
             "yaw_ratio": float(yaw_smooth),
