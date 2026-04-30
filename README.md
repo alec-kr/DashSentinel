@@ -1,9 +1,5 @@
 # DashSentinel
 
-----Work in progress on README----
-
-Real-time adaptive driver monitoring system.
-
 DashSentinel is a modular driver attentiveness system that uses computer vision to detect drowsiness and outputs real-time status to an embedded device (ESP8266/ESP32) via USB.
 
 ## Features
@@ -47,13 +43,13 @@ python3 run_dashsentinel.py --show-ui --draw-landmarks --refine-landmarks
 - Data and logs are written to `./data` and `./logs` by default.
 
 
-## startup baseline behavior
+## Startupu Baseline
 - on launch, the app builds a personal baseline from the current user's face and normal behavior
 - it waits for enough clean frames with a neutral face and normal posture
 - once that baseline is collected, it switches into normal sleepy / alert detection
 - use `--rebuild-baseline-on-start` if you want to ignore the saved profile and rebuild from scratch
 
-### example
+### Example
 ```bash
 python3 run_dashsentinel.py --show-ui --mirror --rebuild-baseline-on-start
 ```
