@@ -79,7 +79,7 @@ class DashSentinelApp:
         signal.signal(signal.SIGINT, self._handle_signal)
         signal.signal(signal.SIGTERM, self._handle_signal)
 
-    def _handle_signal(self, signum, frame):
+    def _handle_signal(self):
         self.running = False
 
     # helper method to open the camera with the specified settings

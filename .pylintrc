@@ -1,5 +1,7 @@
 [MAIN]
 extension-pkg-allow-list=cv2
+extension-pkg-allow-list=mediapipe
 
 [TYPECHECK]
 generated-members=cv2.*
+generated-members=mediapipe.*

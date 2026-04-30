@@ -7,8 +7,8 @@ import serial
 
 class SerialTelemetry:
     """handle serial communication with esp8266 for telemetry and button commands"""
-    # default port can be changed with --serial-port, 
-    # baud rate can be changed with --serial-baud, 
+    # default port can be changed with --serial-port,
+    # baud rate can be changed with --serial-baud,
     # and send interval can be changed with --serial-interval
     def __init__(self, enabled=False, port="/dev/ttyUSB0", baud=115200, interval=0.5):
         self.enabled = enabled
@@ -26,7 +26,7 @@ class SerialTelemetry:
             self.serial = serial.Serial(self.port, self.baud, timeout=0.1)
             time.sleep(2.0)
             print(f"[serial] connected to esp8266 on {self.port} at {self.baud} baud")
-        except Exception as exc:
+        except (serial.SerialException, OSError) as exc:
             self.serial = None
             print(f"[serial] could not open esp8266 serial port {self.port}: {exc}")
 
@@ -47,11 +47,11 @@ class SerialTelemetry:
             self.serial.write(msg.encode("utf-8"))
             self.serial.flush()
 
-        except Exception as exc:
+        except serial.SerialException as exc:
             print(f"[serial] send failed: {exc}")
             try:
                 self.serial.close()
-            except Exception:
+            except serial.SerialException:
                 pass
             self.serial = None
 
@@ -79,6 +79,6 @@ class SerialTelemetry:
         if self.serial is not None:
             try:
                 self.serial.close()
-            except Exception:
+            except serial.SerialException:
                 pass
             self.serial = None

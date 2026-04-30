@@ -69,7 +69,7 @@ class DriverProfile:
     def save(self):
         """save profile to disk"""
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        with open(self.path, "w") as f:
+        with open(self.path, "w", encoding="utf-8") as f:
             json.dump({
                 "sessions": self.sessions,
                 "total_updates": self.total_updates,
@@ -83,7 +83,7 @@ class DriverProfile:
             try:
                 with open(self.path, "r", encoding="utf-8") as f:
                     payload = json.load(f)
-            except Exception:
+            except (OSError, json.JSONDecodeError):
                 payload = {}
 
         self.sessions = int(payload.get("sessions", 0))
@@ -110,9 +110,10 @@ class DriverProfile:
         return self.stats[key].std
 
     def update_from_alert_frame(self, features: dict):
-        """update profile with new data only from alert frames"""
-        for key in self.DEFAULTS.keys():
+        """update profile with new data only from alert frames."""
+        for key in self.DEFAULTS:
             self.stats[key].update(float(features[key]))
+
         self.total_updates += 1
 
     def begin_session(self):

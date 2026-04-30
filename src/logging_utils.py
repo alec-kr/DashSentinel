@@ -1,3 +1,5 @@
+"""handles logging of status and features"""
+
 import os
 import time
 
@@ -27,7 +29,7 @@ class EventLogger:
                         + "\n"
                     )
 
-    def write_periodic(self, status: str, confidence: float, drowsy_score: float, 
+    def write_periodic(self, status: str, confidence: float, drowsy_score: float,
                        attentiveness: float, features: dict, every_seconds: float = 1.0):
         """periodically update logs with current status and features"""
         if not self.enabled:
@@ -37,7 +39,7 @@ class EventLogger:
         if now - self.last_write < every_seconds:
             return
         self.last_write = now
-        
+
         # construction of csv row with required data
         row = (
             f"{now_ts()},{status},{confidence:.4f},{drowsy_score:.4f},{attentiveness:.2f},"

@@ -50,7 +50,8 @@ class AdaptiveScorer:
         return time.time() - self.start_time
 
     def in_calibration(self):
-        """determine if we're still in the initial calibration phase based on time and number of updates"""
+        """determine if we're still in the initial calibration 
+        phase based on time and number of updates"""
         return (
             self.seconds_since_start() < self.calibration_seconds
             or self.profile.total_updates < 150
@@ -115,14 +116,14 @@ class AdaptiveScorer:
         and produces a drowsiness score and related stats"""
         self.no_face_frames = 0
 
-        # compute the various components of the drowsiness score based on deviations from the profile
+        # compute the various components of the drowsiness score
         ear_drop = clamp(
             (self.profile.mean("ear") - features["ear"])
             / max(2.2 * self.profile.std("ear"), 0.03),
             0.0,
             1.0,
         )
-        
+
         low_blink = clamp(
             (self.profile.mean("blink_rate") - features["blink_rate"])
             / max(2.0 * self.profile.std("blink_rate"), 4.0),
@@ -141,8 +142,11 @@ class AdaptiveScorer:
         )
         roll_delta = 1.0 if abs(features["roll_deg"]) > 15.0 else 0.0
         yaw_delta = 1.0 if abs(features["yaw_ratio"]) > 0.8 else 0.0
-        pitch_delta = 1.0 if features["pitch_ratio"] < 0.20 or features["pitch_ratio"] > 0.85 else 0.0
-
+        pitch_delta = (
+            1.0
+            if features["pitch_ratio"] < 0.20 or features["pitch_ratio"] > 0.85
+            else 0.0
+        )
         look_away_duration = features.get("look_away_norm", 0.0)
         head_tilt_duration = features.get("head_tilt_norm", 0.0)
         head_back_duration = features.get("head_back_norm", 0.0)
@@ -189,7 +193,9 @@ class AdaptiveScorer:
         # as we gather more data and approach the calibration time limit
         if self.in_calibration():
             self.state = "CALIBRATING"
-            confidence = clamp(0.50 + 0.50 * (self.seconds_since_start() / max(self.calibration_seconds, 1)), 0.0, 1.0)
+            confidence = clamp(0.50 + 0.50 * 
+                               (self.seconds_since_start() / max(self.calibration_seconds, 1)), 
+                            0.0, 1.0)
             reason = "learning normal baseline"
         else:
             if smoothed_score >= self.drowsy_threshold:
