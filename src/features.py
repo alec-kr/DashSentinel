@@ -130,13 +130,34 @@ class FeatureExtractor:
         self.last_yawn_time = 0.0
         self.yawn_count = 0
 
+        # for head motion
+        self.mar_history = deque(maxlen=30)
+        self.roll_history = deque(maxlen=30)
+        self.yaw_history = deque(maxlen=30)
+        self.pitch_history = deque(maxlen=30)
+
+        self.bad_pose_frames = 0
+        self.look_away_frames = 0
+        self.head_tilt_frames = 0
+        self.head_back_frames = 0
+
     # reset all states/counters for a new session
     def reset(self):
         self.ear_history.clear()
         self.blink_timestamps.clear()
+        self.mar_history.clear()
+        self.roll_history.clear()
+        self.yaw_history.clear()
+        self.pitch_history.clear()
+
+
         self.eye_closed = False
         self.closed_frames = 0
         self.mouth_open_frames = 0
+        self.bad_pose_frames = 0
+        self.look_away_frames = 0
+        self.head_tilt_frames = 0
+        self.head_back_frames = 0
 
     # compute features from face landmarks (ear, mar, blink, pose)
     def extract(self, landmarks, w, h):
@@ -181,7 +202,49 @@ class FeatureExtractor:
         # head pose estimation to detect posture issues (looking away, tilting, etc.)
         yawn_flag = 1.0 if self.mouth_open_frames >= self.yawn_frames_threshold else 0.0
         roll_deg, yaw_ratio, pitch_ratio = estimate_head_pose(landmarks, w, h)
-        posture_flag = 1.0 if abs(roll_deg) > 14 or abs(yaw_ratio) > 0.12 or pitch_ratio < 0.47 or pitch_ratio > 0.72 else 0.0
+        
+        
+        self.roll_history.append(roll_deg)
+        self.yaw_history.append(yaw_ratio)
+        self.pitch_history.append(pitch_ratio)
+
+        roll_smooth = sum(self.roll_history) / len(self.roll_history)
+        yaw_smooth = sum(self.yaw_history) / len(self.yaw_history)
+        pitch_smooth = sum(self.pitch_history) / len(self.pitch_history)
+
+        # detect sustained unsafe head posture
+        looking_away = abs(yaw_smooth) > 0.8
+        head_tilted = abs(roll_smooth) > 15.0
+        head_back_or_down = pitch_smooth < 0.20 or pitch_smooth > 0.85
+        bad_pose_now = looking_away or head_tilted or head_back_or_down
+
+        if looking_away:
+            self.look_away_frames += 1
+        else:
+            self.look_away_frames = max(0, self.look_away_frames - 2)
+
+        if head_tilted:
+            self.head_tilt_frames += 1
+        else:
+            self.head_tilt_frames = max(0, self.head_tilt_frames - 2)
+
+        if head_back_or_down:
+            self.head_back_frames += 1
+        else:
+            self.head_back_frames = max(0, self.head_back_frames - 2)
+
+        if bad_pose_now:
+            self.bad_pose_frames += 1
+        else:
+            self.bad_pose_frames = max(0, self.bad_pose_frames - 2)
+
+        bad_pose_norm = clamp(self.bad_pose_frames / 24.0, 0.0, 1.0)
+        look_away_norm = clamp(self.look_away_frames / 18.0, 0.0, 1.0)
+        head_tilt_norm = clamp(self.head_tilt_frames / 18.0, 0.0, 1.0)
+        head_back_norm = clamp(self.head_back_frames / 18.0, 0.0, 1.0)
+
+        posture_flag = 1.0 if self.bad_pose_frames >= 8 else 0.0
+        
         closed_frames_norm = clamp(self.closed_frames / 30.0, 0.0, 1.0)
 
         return {
@@ -195,6 +258,17 @@ class FeatureExtractor:
             "yawn_flag": float(yawn_flag),
             "posture_flag": float(posture_flag),
             "yawn_count": int(self.yawn_count),
+            "roll_deg": float(roll_smooth),
+            "yaw_ratio": float(yaw_smooth),
+            "pitch_ratio": float(pitch_smooth),
+            "posture_flag": float(posture_flag),
+            "bad_pose_norm": float(bad_pose_norm),
+            "look_away_norm": float(look_away_norm),
+            "head_tilt_norm": float(head_tilt_norm),
+            "head_back_norm": float(head_back_norm),
+            "looking_away": float(1.0 if looking_away else 0.0),
+            "head_tilted": float(1.0 if head_tilted else 0.0),
+            "head_back_or_down": float(1.0 if head_back_or_down else 0.0),
         }
     
     # resets all states/counters

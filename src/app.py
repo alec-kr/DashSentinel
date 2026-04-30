@@ -60,7 +60,7 @@ class DashSentinelApp:
         # track when we last saved the profile to avoid saving too frequently
         self.last_profile_save = time.time()
 
-        self.fps_history = deque(maxlen=20)
+        self.fps_history = deque(maxlen=60)
         self.last_frame_time = time.time()
         self.baseline_frames_collected = 0
         self.baseline_started_at = None
@@ -118,8 +118,7 @@ class DashSentinelApp:
             cv2.putText(frame, f"ear: {features['ear']:.3f}  mar: {features['mar']:.3f}", (18, 226), cv2.FONT_HERSHEY_SIMPLEX, 0.54, (255, 255, 255), 2)
             cv2.putText(frame, f"blink/min: {features['blink_rate']:.1f}  yawns: {features['yawn_count']}", (18, 252), cv2.FONT_HERSHEY_SIMPLEX, 0.54, (255, 255, 255), 2)
             cv2.putText(frame, f"roll: {features['roll_deg']:.1f}  yaw: {features['yaw_ratio']:.2f}  pitch: {features['pitch_ratio']:.2f}", (18, 278), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (220, 220, 220), 2)
-            cv2.putText(frame, f"closed: {features['closed_frames_norm']:.2f}  yawnflag: {int(features['yawn_flag'])}  posture: {int(features['posture_flag'])}", (18, 304), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (220, 220, 220), 2)
-
+            cv2.putText(frame, f"closed: {features['closed_frames_norm']:.2f}  pose: {features.get('bad_pose_norm', 0.0):.2f}  away: {features.get('look_away_norm', 0.0):.2f}", (18, 304), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (220, 220, 220), 2)
         # show profile update count and FPS for debugging and performance monitoring
         cv2.putText(frame, f"profile updates: {self.profile.total_updates}", (18, 330), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (200, 200, 200), 2)
         cv2.putText(frame, f"fps: {fps:.1f}", (18, 354), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (180, 180, 180), 2)
