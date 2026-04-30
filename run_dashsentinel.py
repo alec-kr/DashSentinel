@@ -4,6 +4,7 @@ from src.cli import parse_args
 
 
 def main():
+    """Main function to run the app"""
     args = parse_args()
     app = DashSentinelApp(args)
     app.run()
