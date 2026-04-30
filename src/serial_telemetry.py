@@ -1,8 +1,15 @@
-import time
+"""
+Module for handling serial telemetry communication to/from the esp8266
+"""
 
-# sends and receives simple telemetry data to/from the esp8266 microcontroller over the serial connection
+import time
+import serial
+
 class SerialTelemetry:
-    # default port can be changed with --serial-port, baud rate can be changed with --serial-baud, and send interval can be changed with --serial-interval
+    """handle serial communication with esp8266 for telemetry and button commands"""
+    # default port can be changed with --serial-port,
+    # baud rate can be changed with --serial-baud,
+    # and send interval can be changed with --serial-interval
     def __init__(self, enabled=False, port="/dev/ttyUSB0", baud=115200, interval=0.5):
         self.enabled = enabled
         self.port = port
@@ -16,16 +23,15 @@ class SerialTelemetry:
 
         # attempt to open the serial port and connect to the esp8266
         try:
-            import serial
             self.serial = serial.Serial(self.port, self.baud, timeout=0.1)
             time.sleep(2.0)
             print(f"[serial] connected to esp8266 on {self.port} at {self.baud} baud")
-        except Exception as exc:
+        except (serial.SerialException, OSError) as exc:
             self.serial = None
             print(f"[serial] could not open esp8266 serial port {self.port}: {exc}")
 
-    # periodically send the stats to the esp
     def send(self, status, attentiveness, drowsy_score):
+        """periodically send the stats to the esp"""
         if not self.enabled or self.serial is None:
             return
 
@@ -41,16 +47,16 @@ class SerialTelemetry:
             self.serial.write(msg.encode("utf-8"))
             self.serial.flush()
 
-        except Exception as exc:
+        except serial.SerialException as exc:
             print(f"[serial] send failed: {exc}")
             try:
                 self.serial.close()
-            except Exception:
+            except serial.SerialException:
                 pass
             self.serial = None
 
-    # read any commands sent from the esp8266 via serial
     def read_esp_command(self):
+        """read any incoming commands sent from the esp8266 via serial"""
         if self.serial is None:
             return None
 
@@ -67,12 +73,12 @@ class SerialTelemetry:
             return "RESET_STATS"
 
         return None
-    
-    # gracefully close the serial connection
+
     def close(self):
+        """gracefully close the serial connection"""
         if self.serial is not None:
             try:
                 self.serial.close()
-            except Exception:
+            except serial.SerialException:
                 pass
             self.serial = None

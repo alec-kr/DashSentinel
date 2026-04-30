@@ -1,3 +1,10 @@
+"""
+Main application logic.
+Initializes the camera feed, processes video frames to extract facial features,
+computes drowsiness scores based on an adaptive profile,
+and manages the overall state of the application including logging and telemetry.
+"""
+
 import signal
 import sys
 import time
@@ -11,11 +18,12 @@ from .features import FeatureExtractor, enhance_lighting
 from .logging_utils import EventLogger
 from .profile import DriverProfile
 from .scoring import AdaptiveScorer, ScoreOutput
-from .utils import now_ts
 from .serial_telemetry import SerialTelemetry
+from .utils import now_ts
 
-
+# pylint: disable=too-many-instance-attributes,too-few-public-methods
 class DashSentinelApp:
+    """main application class that encapsulates system"""
     def __init__(self, args):
         self.args = args
         self.running = True
@@ -24,7 +32,7 @@ class DashSentinelApp:
         # clear any existing baseline if requested, otherwise continue building on it
         if getattr(args, "rebuild_baseline_on_start", False):
             self.profile.reset_baseline()
-        
+
         # start a new session to track updates in this run
         self.profile.begin_session()
 
@@ -52,7 +60,9 @@ class DashSentinelApp:
         # setup telemetry to send data to esp8266 and receive commands
         self.telemetry = SerialTelemetry(
             enabled=getattr(args, "enable_esp_serial", False),
-            port=getattr(args, "esp_port", "/dev/ttyUSB0"), # can change with flag --esp-port
+            port=getattr(
+                args, "esp_port", "/dev/ttyUSB0"
+            ),  # can change with flag --esp-port
             baud=getattr(args, "esp_baud", 115200),
             interval=getattr(args, "esp_send_interval", 0.5),
         )
@@ -69,7 +79,7 @@ class DashSentinelApp:
         signal.signal(signal.SIGINT, self._handle_signal)
         signal.signal(signal.SIGTERM, self._handle_signal)
 
-    def _handle_signal(self, signum, frame):
+    def _handle_signal(self):
         self.running = False
 
     # helper method to open the camera with the specified settings
@@ -91,7 +101,9 @@ class DashSentinelApp:
         if dt > 0:
             self.fps_history.append(1.0 / dt)
         # return average FPS over history
-        return sum(self.fps_history) / len(self.fps_history) if self.fps_history else 0.0
+        return (
+            sum(self.fps_history) / len(self.fps_history) if self.fps_history else 0.0
+        )
 
     # helper method to draw the overlay with current status and features
     def _draw_overlay(self, frame, score: ScoreOutput, features, fps: float):
@@ -105,48 +117,222 @@ class DashSentinelApp:
         else:
             color = (0, 255, 255)
 
-        # draw the main status box 
-        cv2.putText(frame, f"phase: {score.phase}", (18, 34), cv2.FONT_HERSHEY_SIMPLEX, 0.78, color, 2)
-        cv2.putText(frame, f"status: {score.status}", (18, 66), cv2.FONT_HERSHEY_SIMPLEX, 0.78, color, 2)
-        cv2.putText(frame, f"confidence: {score.confidence * 100:.1f}%", (18, 98), cv2.FONT_HERSHEY_SIMPLEX, 0.72, color, 2)
-        cv2.putText(frame, f"drowsy score: {score.drowsy_score:.3f}", (18, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.66, color, 2)
-        cv2.putText(frame, f"attentiveness: {score.attentiveness:.1f}/100", (18, 162), cv2.FONT_HERSHEY_SIMPLEX, 0.72, (255, 255, 0), 2)
-        cv2.putText(frame, f"reason: {score.reason}", (18, 194), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
+        # draw the main status box
+        cv2.putText(
+            frame,
+            f"phase: {score.phase}",
+            (18, 34),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.78,
+            color,
+            2,
+        )
 
-        # if face is detected, show key features and metrics for debugging and insight into the scoring
+        cv2.putText(
+            frame,
+            f"status: {score.status}",
+            (18, 66),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.78,
+            color,
+            2,
+        )
+
+        cv2.putText(
+            frame,
+            f"confidence: {score.confidence * 100:.1f}%",
+            (18, 98),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.72,
+            color,
+            2,
+        )
+
+        cv2.putText(
+            frame,
+            f"drowsy score: {score.drowsy_score:.3f}",
+            (18, 130),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.66,
+            color,
+            2,
+        )
+
+        cv2.putText(
+            frame,
+            f"attentiveness: {score.attentiveness:.1f}/100",
+            (18, 162),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.72,
+            (255, 255, 0),
+            2,
+        )
+        cv2.putText(
+            frame,
+            f"reason: {score.reason}",
+            (18, 194),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            (255, 255, 255),
+            2,
+        )
+
+        # if face is detected, show key features and metrics
         if features is not None:
-            cv2.putText(frame, f"ear: {features['ear']:.3f}  mar: {features['mar']:.3f}", (18, 226), cv2.FONT_HERSHEY_SIMPLEX, 0.54, (255, 255, 255), 2)
-            cv2.putText(frame, f"blink/min: {features['blink_rate']:.1f}  yawns: {features['yawn_count']}", (18, 252), cv2.FONT_HERSHEY_SIMPLEX, 0.54, (255, 255, 255), 2)
-            cv2.putText(frame, f"roll: {features['roll_deg']:.1f}  yaw: {features['yaw_ratio']:.2f}  pitch: {features['pitch_ratio']:.2f}", (18, 278), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (220, 220, 220), 2)
-            cv2.putText(frame, f"closed: {features['closed_frames_norm']:.2f}  pose: {features.get('bad_pose_norm', 0.0):.2f}  away: {features.get('look_away_norm', 0.0):.2f}", (18, 304), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (220, 220, 220), 2)
+            cv2.putText(
+                frame,
+                f"ear: {features['ear']:.3f}  mar: {features['mar']:.3f}",
+                (18, 226),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.54,
+                (255, 255, 255),
+                2,
+            )
+            cv2.putText(
+                frame,
+                f"blink/min: {features['blink_rate']:.1f}  yawns: {features['yawn_count']}",
+                (18, 252),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.54,
+                (255, 255, 255),
+                2,
+            )
+            cv2.putText(
+                frame,
+                (
+                    f"roll: {features['roll_deg']:.1f} "
+                    f"yaw: {features['yaw_ratio']:.2f} "
+                    f"pitch: {features['pitch_ratio']:.2f}"
+                ),
+                (18, 278),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.50,
+                (220, 220, 220),
+                2,
+            )
+            cv2.putText(
+                frame,
+                (
+                    f"closed: {features['closed_frames_norm']:.2f} "
+                    f"pose: {features.get('bad_pose_norm', 0.0):.2f} "
+                    f"away: {features.get('look_away_norm', 0.0):.2f}"
+                ),
+                (18, 304),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.50,
+                (220, 220, 220),
+                2,
+            )
         # show profile update count and FPS for debugging and performance monitoring
-        cv2.putText(frame, f"profile updates: {self.profile.total_updates}", (18, 330), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (200, 200, 200), 2)
-        cv2.putText(frame, f"fps: {fps:.1f}", (18, 354), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (180, 180, 180), 2)
+        cv2.putText(
+            frame,
+            f"profile updates: {self.profile.total_updates}",
+            (18, 330),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.50,
+            (200, 200, 200),
+            2,
+        )
+        cv2.putText(
+            frame,
+            f"fps: {fps:.1f}",
+            (18, 354),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.50,
+            (180, 180, 180),
+            2,
+        )
         if not self.args.headless:
-            cv2.putText(frame, "press q to quit", (18, 378), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (180, 180, 180), 2)
+            cv2.putText(
+                frame,
+                "press q to quit",
+                (18, 378),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.50,
+                (180, 180, 180),
+                2,
+            )
 
     # overlay for the startup baseline phase with instructions and progress
     def _draw_baseline_overlay(self, frame, features, fps, elapsed):
-        # the remaining time is just for user feedback, it doesn't affect when 
-        # the baseline phase actually ends since we also require a minimum number of valid frames to be collected
+        # the remaining time is just for user feedback, it doesn't affect when
+        # the baseline phase actually ends
         remaining = max(0.0, self.args.startup_baseline_seconds - elapsed)
-        
-        # during baseline collection, we want to encourage the user to look at the camera with a neutral face
-        # and avoid excessive blinking or yawning, since those frames won't be as useful for building an accurate profile
-        cv2.putText(frame, "phase: startup baseline", (18, 34), cv2.FONT_HERSHEY_SIMPLEX, 0.78, (0, 255, 255), 2)
-        cv2.putText(frame, "look at the camera with a neutral face", (18, 66), cv2.FONT_HERSHEY_SIMPLEX, 0.68, (0, 255, 255), 2)
-        cv2.putText(frame, f"frames collected: {self.baseline_frames_collected}", (18, 98), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (255, 255, 255), 2)
-        cv2.putText(frame, f"time remaining: {remaining:.1f}s", (18, 128), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (255, 255, 255), 2)
-        
-        # show key features to help the user understand what the system is seeing and encourage them to maintain a good baseline posture
-        if features is not None:
-            cv2.putText(frame, f"ear: {features['ear']:.3f}  mar: {features['mar']:.3f}  blink/min: {features['blink_rate']:.1f}", (18, 158), cv2.FONT_HERSHEY_SIMPLEX, 0.54, (255, 255, 255), 2)
-        cv2.putText(frame, f"fps: {fps:.1f}", (18, 188), cv2.FONT_HERSHEY_SIMPLEX, 0.54, (180, 180, 180), 2)
-        
-        if self.args.show_ui and not self.args.headless:
-            cv2.putText(frame, "press q to quit", (18, 214), cv2.FONT_HERSHEY_SIMPLEX, 0.54, (180, 180, 180), 2)
 
-    # during baseline phase, only use frames where the driver is looking at the camera with a neutral expression and not excessively blinking or yawning
+        cv2.putText(
+            frame,
+            "phase: startup baseline",
+            (18, 34),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.78,
+            (0, 255, 255),
+            2,
+        )
+        cv2.putText(
+            frame,
+            "look at the camera with a neutral face",
+            (18, 66),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.68,
+            (0, 255, 255),
+            2,
+        )
+        cv2.putText(
+            frame,
+            f"frames collected: {self.baseline_frames_collected}",
+            (18, 98),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.62,
+            (255, 255, 255),
+            2,
+        )
+        cv2.putText(
+            frame,
+            f"time remaining: {remaining:.1f}s",
+            (18, 128),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.62,
+            (255, 255, 255),
+            2,
+        )
+
+        # show key features during baseline phase
+        if features is not None:
+            cv2.putText(
+                frame,
+                (
+                    f"ear: {features['ear']:.3f}  "
+                    f"mar: {features['mar']:.3f}  "
+                    f"blink/min: {features['blink_rate']:.1f}"
+                ),
+                (18, 158),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.54,
+                (255, 255, 255),
+                2,
+            )
+        cv2.putText(
+            frame,
+            f"fps: {fps:.1f}",
+            (18, 188),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.54,
+            (180, 180, 180),
+            2,
+        )
+
+        if self.args.show_ui and not self.args.headless:
+            cv2.putText(
+                frame,
+                "press q to quit",
+                (18, 214),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.54,
+                (180, 180, 180),
+                2,
+            )
+
+    # during baseline phase, only use frames where the driver is looking at the camera neutrally
     def _feature_is_valid_for_baseline(self, features):
         return (
             features["closed_frames_norm"] < 0.15
@@ -154,21 +340,24 @@ class DashSentinelApp:
             and features["posture_flag"] < 0.5
         )
 
-    # the baseline phase should only end once we've collected enough valid frames and enough time has passed to ensure a good representation of the driver's normal state
+    # the baseline phase should only end once we've collected enough valid frames
     def _startup_baseline_complete(self, elapsed):
         enough_time = elapsed >= self.args.startup_baseline_seconds
-        enough_frames = self.baseline_frames_collected >= self.args.startup_baseline_min_frames
+        enough_frames = (
+            self.baseline_frames_collected >= self.args.startup_baseline_min_frames
+        )
         return enough_time and enough_frames
 
     # run initial baseline collection to build the profile, then process the frames to update scores
+    # pylint: disable=too-many-locals
     def _run_startup_baseline(self, cap, face_mesh):
-        self.extractor.reset() # reset to clear any existing states
+        self.extractor.reset()  # reset to clear any existing states
         self.baseline_frames_collected = 0
         self.baseline_started_at = time.time()
 
         while self.running:
             ok, frame = cap.read()
-            
+
             # safety check to avoid processing if camera read fails
             if not ok:
                 time.sleep(0.03)
@@ -179,7 +368,9 @@ class DashSentinelApp:
                 frame = cv2.flip(frame, 1)
 
             # downscaling for faster baseline processing
-            frame = cv2.resize(frame, (self.args.width, self.args.height), interpolation=cv2.INTER_AREA)
+            frame = cv2.resize(
+                frame, (self.args.width, self.args.height), interpolation=cv2.INTER_AREA
+            )
             enhanced = enhance_lighting(frame)
             display_frame = enhanced.copy()
             fps = self._update_fps()
@@ -200,7 +391,7 @@ class DashSentinelApp:
                     self.profile.update_from_alert_frame(features)
                     self.baseline_frames_collected += 1
 
-            # show overlay with progress during baseline phase, or print to console if UI is disabled
+            # show overlay with progress during baseline phase, or print to console
             elapsed = time.time() - self.baseline_started_at
             if self.args.show_ui and not self.args.headless:
                 self._draw_baseline_overlay(display_frame, features, fps, elapsed)
@@ -210,7 +401,13 @@ class DashSentinelApp:
                     self.running = False
                     break
             else:
-                sys.stdout.write(f"\r[{now_ts()}] building baseline frames={self.baseline_frames_collected} elapsed={elapsed:.1f}s   ")
+                sys.stdout.write(
+                    (
+                        f"\r[{now_ts()}] building baseline "
+                        f"frames={self.baseline_frames_collected} "
+                        f"elapsed={elapsed:.1f}s "
+                    )
+                )
                 sys.stdout.flush()
 
             if self._startup_baseline_complete(elapsed):
@@ -223,7 +420,10 @@ class DashSentinelApp:
         # reset extractor to start fresh for active phase
         self.extractor.reset()
 
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def run(self):
+        """main loop to process video frames, extract features, 
+        compute scores, log events, and handle telemetry"""
         cap = self._open_camera()
         mp_face_mesh = mp.solutions.face_mesh
         frame_count = 0
@@ -247,11 +447,16 @@ class DashSentinelApp:
                     if self.args.mirror:
                         frame = cv2.flip(frame, 1)
 
-                    # downscale frame for faster processing...mediapipe can be a bottleneck at higher resolutions
-                    frame = cv2.resize(frame, (self.args.width, self.args.height), interpolation=cv2.INTER_AREA)
+                    # downscale frame for faster processing
+                    # mediapipe can be a bottleneck at higher resolutions
+                    frame = cv2.resize(
+                        frame,
+                        (self.args.width, self.args.height),
+                        interpolation=cv2.INTER_AREA,
+                    )
                     # lighting enhancement for varying light conditions
                     enhanced = enhance_lighting(frame)
-                    
+
                     display_frame = enhanced.copy()
                     fps = self._update_fps()
 
@@ -261,14 +466,17 @@ class DashSentinelApp:
                         status="NO FACE",
                         confidence=0.0,
                         drowsy_score=0.0,
-                        attentiveness=self.scorer.attention_history[-1] if self.scorer.attention_history else 100.0,
+                        attentiveness=self.scorer.attention_history[-1]
+                        if self.scorer.attention_history
+                        else 100.0,
                         reason="face not visible",
                     )
                     features = None
 
                     # process every nth frame. use arg --process-every-n-frames
-                    process_this = frame_count % max(1, self.args.process_every_n_frames) == 0
-
+                    process_this = (
+                        frame_count % max(1, self.args.process_every_n_frames) == 0
+                    )
 
                     if process_this:
                         rgb = cv2.cvtColor(enhanced, cv2.COLOR_BGR2RGB)
@@ -279,13 +487,19 @@ class DashSentinelApp:
                             features = self.extractor.extract(landmarks, w, h)
                             score = self.scorer.score(features)
 
-                            # draw landmarks with flag --draw-landmarks for debugging/visualization 
+                            # draw landmarks with flag --draw-landmarks for debugging/visualization
                             if self.args.draw_landmarks:
-                                for idx in LEFT_EYE + RIGHT_EYE + [NOSE_TIP, MOUTH_TOP, MOUTH_BOTTOM]:
+                                for idx in (
+                                    LEFT_EYE
+                                    + RIGHT_EYE
+                                    + [NOSE_TIP, MOUTH_TOP, MOUTH_BOTTOM]
+                                ):
                                     lm = landmarks[idx]
                                     x = int(lm.x * w)
                                     y = int(lm.y * h)
-                                    cv2.circle(display_frame, (x, y), 2, (255, 255, 255), -1)
+                                    cv2.circle(
+                                        display_frame, (x, y), 2, (255, 255, 255), -1
+                                    )
 
                             self.logger.write_periodic(
                                 status=score.status,
@@ -300,7 +514,9 @@ class DashSentinelApp:
                             score = self.scorer.update_no_face()
 
                     # send score and attentiveness to esp8266, and check for any incoming commands
-                    self.telemetry.send(score.status, score.attentiveness, score.drowsy_score)
+                    self.telemetry.send(
+                        score.status, score.attentiveness, score.drowsy_score
+                    )
                     cmd = self.telemetry.read_esp_command()
 
                     # resetting baseline clears all existing profile data and starts over
@@ -310,7 +526,8 @@ class DashSentinelApp:
                         self.scorer.start_time = time.time()
                         print("baseline reset requested from esp8266")
 
-                    # resetting stats clears the current state of all features and scores, but keeps the existing baseline profile data
+                    # resetting stats clears the current state of all features and scores,
+                    # but keeps the existing baseline profile data
                     elif cmd == "RESET_STATS":
                         self.scorer.reset_stats()
                         self.extractor.reset_stats()
@@ -337,12 +554,22 @@ class DashSentinelApp:
                     else:
                         if process_this:
                             sys.stdout.write(
-                                f"\r[{now_ts()}] phase={score.phase} status={score.status} conf={score.confidence:.2f} score={score.drowsy_score:.2f} attentiveness={score.attentiveness:.1f} reason={score.reason}   "
+                                (
+                                    f"\r[{now_ts()}] phase={score.phase} "
+                                    f"status={score.status} "
+                                    f"conf={score.confidence:.2f} "
+                                    f"score={score.drowsy_score:.2f} "
+                                    f"attentiveness={score.attentiveness:.1f} "
+                                    f"reason={score.reason}   "
+                                )
                             )
                             sys.stdout.flush()
 
                     # save profile periodically
-                    if time.time() - self.last_profile_save >= self.args.save_profile_every_seconds:
+                    if (
+                        time.time() - self.last_profile_save
+                        >= self.args.save_profile_every_seconds
+                    ):
                         self.profile.save()
                         self.last_profile_save = time.time()
         finally:

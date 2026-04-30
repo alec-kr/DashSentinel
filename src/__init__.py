@@ -1,3 +1,5 @@
+"""Contains all local module imports"""
+
 __all__ = [
     "app",
     "cli",
