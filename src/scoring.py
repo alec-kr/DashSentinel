@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from .utils import clamp
 
-
+# holds scores and related info for a single frame, returned by AdaptiveScorer
 @dataclass
 class ScoreOutput:
     phase: str
@@ -12,16 +12,14 @@ class ScoreOutput:
     confidence: float
     drowsy_score: float
     attentiveness: float
-    should_alarm: bool
     reason: str
 
-
+# main class for scoring drowsiness based on profile and current features
 class AdaptiveScorer:
     def __init__(
         self,
         profile,
         calibration_seconds=25,
-        alarm_threshold=0.72,
         attention_window=240,
         warning_threshold=0.42,
         drowsy_threshold=0.58,
@@ -30,29 +28,36 @@ class AdaptiveScorer:
     ):
         self.profile = profile
         self.calibration_seconds = calibration_seconds
-        self.alarm_threshold = alarm_threshold
         self.warning_threshold = warning_threshold
         self.drowsy_threshold = drowsy_threshold
         self.status_hold_frames = status_hold_frames
         self.no_face_hold_frames = no_face_hold_frames
 
         self.start_time = time.time()
+
+        # keep recent attentiveness scores to smooth out the output and avoid jitter/spikes
         self.attention_history = deque(maxlen=attention_window)
         self.score_history = deque(maxlen=30)
+
+        # clear history and seed with neutral values for a smooth start
         self.state = "CALIBRATING"
         self.pending_state = None
         self.pending_frames = 0
         self.no_face_frames = 0
 
+    # counts seconds since start to manage calibration phase
     def seconds_since_start(self):
         return time.time() - self.start_time
 
+    # determines if we're still in the initial calibration phase based on time and number of updates
     def in_calibration(self):
         return self.seconds_since_start() < self.calibration_seconds or self.profile.total_updates < 150
 
+    # helper to compute normalized delta for head pose features, with clamping to avoid extreme outliers dominating the score
     def _normalized_delta(self, value, mean, std, floor):
         return clamp(abs(value - mean) / max(2.5 * std, floor), 0.0, 1.0)
 
+    # produce a reason for current score based on most significant contributing factor
     def _build_reason(self, components):
         ranked = sorted(components.items(), key=lambda item: item[1], reverse=True)
         top = [name for name, score in ranked if score >= 0.18][:2]
@@ -60,6 +65,7 @@ class AdaptiveScorer:
             return "normal behavior"
         return ", ".join(top)
 
+    # requires a certain number of consecutive frames to transition to a new state
     def _promote_state(self, desired_state):
         if desired_state == self.state:
             self.pending_state = None
@@ -77,6 +83,7 @@ class AdaptiveScorer:
             self.pending_state = None
             self.pending_frames = 0
 
+    # if no face is detected within n frames, switch to NO_FACE state
     def update_no_face(self):
         self.no_face_frames += 1
         if self.no_face_frames >= self.no_face_hold_frames:
@@ -84,20 +91,23 @@ class AdaptiveScorer:
             self.pending_state = None
             self.pending_frames = 0
 
+        # calculate attentiveness based on history, but if no history exists (mostly at startup), default to 100%
         attentiveness = sum(self.attention_history) / len(self.attention_history) if self.attention_history else 100.0
+        
         return ScoreOutput(
             phase="ACTIVE" if not self.in_calibration() else "CALIBRATING",
             status="NO FACE",
             confidence=0.0,
             drowsy_score=self.score_history[-1] if self.score_history else 0.0,
             attentiveness=float(attentiveness),
-            should_alarm=False,
             reason="face not visible",
         )
 
+    # main scoring function that takes current features, compares to profile, and produces a drowsiness score and related stats
     def score(self, features: dict) -> ScoreOutput:
         self.no_face_frames = 0
 
+        # compute the various components of the drowsiness score based on deviations from the profile
         ear_drop = clamp((self.profile.mean("ear") - features["ear"]) / max(2.2 * self.profile.std("ear"), 0.03), 0.0, 1.0)
         low_blink = clamp((self.profile.mean("blink_rate") - features["blink_rate"]) / max(2.0 * self.profile.std("blink_rate"), 4.0), 0.0, 1.0)
         yawn_mag = clamp((features["mar"] - max(self.profile.mean("mar") + 2.0 * self.profile.std("mar"), 0.34)) / 0.22, 0.0, 1.0)
@@ -117,15 +127,19 @@ class AdaptiveScorer:
         self.score_history.append(drowsy_score)
         smoothed_score = sum(self.score_history) / len(self.score_history)
 
+        # if there are no extreme indicators of drowsiness but the score is still elevated, treat it as a stable alert and use it to update the profile baseline
         stable_alert = (
             smoothed_score < 0.28
             and features["yawn_flag"] < 0.5
             and features["posture_flag"] < 0.5
             and features["closed_frames_norm"] < 0.2
         )
+
+        # if we're in calibration or if we have a stable alert, update the profile with the current features to refine the baseline
         if self.in_calibration() or stable_alert:
             self.profile.update_from_alert_frame(features)
 
+        # during calibration, we want to gradually increase confidence as we gather more data and approach the calibration time limit
         if self.in_calibration():
             self.state = "CALIBRATING"
             confidence = clamp(0.50 + 0.50 * (self.seconds_since_start() / max(self.calibration_seconds, 1)), 0.0, 1.0)
@@ -148,7 +162,6 @@ class AdaptiveScorer:
         self.attention_history.append(attentiveness)
         attentiveness_smoothed = sum(self.attention_history) / len(self.attention_history)
 
-        should_alarm = self.state == "DROWSY" and smoothed_score >= self.alarm_threshold
         phase = "CALIBRATING" if self.state == "CALIBRATING" else "ACTIVE"
         status = "LEARNING BASELINE" if self.state == "CALIBRATING" else self.state
 
@@ -158,10 +171,10 @@ class AdaptiveScorer:
             confidence=float(confidence),
             drowsy_score=float(smoothed_score),
             attentiveness=float(attentiveness_smoothed),
-            should_alarm=should_alarm,
             reason=reason,
         )
     
+    # used to reset score history and state machine
     def reset_stats(self):
         self.attention_history.clear()
         self.score_history.clear()

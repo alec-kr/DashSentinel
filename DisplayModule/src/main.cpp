@@ -16,6 +16,7 @@
 // i2c address for ssd1306
 #define OLED_ADDR 0x3C
 
+// display object
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // store current status and scores
@@ -32,6 +33,7 @@ unsigned long lastBaselinePress = 0;
 unsigned long lastStatBtnPress = 0;
 const unsigned long debounceMs = 250;
 
+// show current status and scores on the display
 void drawDisplay() {
   display.clearDisplay();
 
@@ -61,27 +63,34 @@ void drawDisplay() {
   display.display();
 }
 
+// parse incoming serial data in format "status,attentiveness,drowsyScore"
 void parseLine(String line) {
-  line.trim();
+  line.trim(); // remove whitespace and newline chars
 
+  // split by comma
   int firstComma = line.indexOf(',');
   int secondComma = line.indexOf(',', firstComma + 1);
 
+  // validate format. if comma is missing, ignore the line
   if (firstComma < 0 || secondComma < 0) {
     return;
   }
 
+  // extract vals from line
   currentStatus = line.substring(0, firstComma);
   attentiveness = line.substring(firstComma + 1, secondComma).toFloat();
   drowsyScore = line.substring(secondComma + 1).toFloat();
 
+  // update display
   drawDisplay();
 }
 
 // Check button states and print to serial if pressed
 void checkButtons() {
+  // get current btn states
   bool baselineState = digitalRead(BTN_RESET_BASELINE);
   bool statBtnState = digitalRead(BTN_RESET_STATS);
+  // used for debouncing
   unsigned long now = millis();
 
   // baseline reset button (D5)
@@ -96,23 +105,28 @@ void checkButtons() {
     lastStatBtnPress = now;
   }
 
+  // update last states
   lastBaselineState = baselineState;
   lastStatBtnState = statBtnState;
 }
 
 void setup() {
+  // using internal pullup resistors for buttons, 
+  // so they read HIGH when not pressed and LOW when pressed
   pinMode(BTN_RESET_BASELINE, INPUT_PULLUP);
   pinMode(BTN_RESET_STATS, INPUT_PULLUP);
 
   Serial.begin(115200);
   Wire.begin(); 
 
+  // delay to allow serial monitor to connect before sending data
   if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
     while (true) {
       delay(1000);
     }
   }
 
+  // base init for display
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
   display.setTextSize(1);
@@ -123,10 +137,10 @@ void setup() {
 }
 
 void loop() {
+  // check buttons on every loop and print to serial if pressed
   checkButtons();
 
   if (Serial.available()) {
-    // display.clearDisplay(); //uncomment to clear display. may cause flickering
     String line = Serial.readStringUntil('\n');
     parseLine(line);
   }

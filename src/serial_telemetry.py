@@ -1,7 +1,8 @@
 import time
 
-
+# sends and receives simple telemetry data to/from the esp8266 microcontroller over the serial connection
 class SerialTelemetry:
+    # default port can be changed with --serial-port, baud rate can be changed with --serial-baud, and send interval can be changed with --serial-interval
     def __init__(self, enabled=False, port="/dev/ttyUSB0", baud=115200, interval=0.5):
         self.enabled = enabled
         self.port = port
@@ -13,6 +14,7 @@ class SerialTelemetry:
         if not self.enabled:
             return
 
+        # attempt to open the serial port and connect to the esp8266
         try:
             import serial
             self.serial = serial.Serial(self.port, self.baud, timeout=0.1)
@@ -22,6 +24,7 @@ class SerialTelemetry:
             self.serial = None
             print(f"[serial] could not open esp8266 serial port {self.port}: {exc}")
 
+    # periodically send the stats to the esp
     def send(self, status, attentiveness, drowsy_score):
         if not self.enabled or self.serial is None:
             return
@@ -33,10 +36,11 @@ class SerialTelemetry:
         self.last_send = now
 
         try:
-            # simple csv-style line for esp8266 parsing
+            # simple csv-style line to be parsed on esp8266
             msg = f"{status},{attentiveness:.1f},{drowsy_score:.3f}\n"
             self.serial.write(msg.encode("utf-8"))
             self.serial.flush()
+
         except Exception as exc:
             print(f"[serial] send failed: {exc}")
             try:
@@ -45,7 +49,7 @@ class SerialTelemetry:
                 pass
             self.serial = None
 
-
+    # read any commands sent from the esp8266 via serial
     def read_esp_command(self):
         if self.serial is None:
             return None
@@ -55,6 +59,7 @@ class SerialTelemetry:
 
         line = self.serial.readline().decode("utf-8", errors="ignore").strip()
 
+        # handle the button press commands sent from the esp8266
         if line == "BTN_RESET_BASELINE":
             return "RESET_BASELINE"
 
@@ -63,7 +68,7 @@ class SerialTelemetry:
 
         return None
     
-
+    # gracefully close the serial connection
     def close(self):
         if self.serial is not None:
             try:
