@@ -1,6 +1,3 @@
-# sleepy guard app
-# real-time driver monitoring using face landmarks and adaptive scoring
-
 import time
 from collections import deque
 
@@ -23,19 +20,20 @@ from .constants import (
 from .utils import clamp, euclidean
 
 
-# function that handles a specific step in the pipeline
+# convert landmark to pixel coordinates
 def get_point(landmarks, idx, w, h):
     lm = landmarks[idx]
     return np.array([lm.x * w, lm.y * h], dtype=np.float32)
 
 
-# function that handles a specific step in the pipeline
+# get eye aspect ratio for given eye landmarks
 def eye_aspect_ratio(landmarks, eye_indices, w, h):
     pts = []
     for idx in eye_indices:
         lm = landmarks[idx]
         pts.append((lm.x * w, lm.y * h))
 
+    # unpack points for EAR calculation. 6 points are used for EAR: 2 horizontal and 4 vertical
     p1, p2, p3, p4, p5, p6 = pts
     vertical_1 = euclidean(p2, p6)
     vertical_2 = euclidean(p3, p5)
@@ -45,7 +43,7 @@ def eye_aspect_ratio(landmarks, eye_indices, w, h):
     return (vertical_1 + vertical_2) / (2.0 * horizontal)
 
 
-# function that handles a specific step in the pipeline
+# get mouth aspect ratio for given mouth landmarks
 def mouth_aspect_ratio(landmarks, w, h):
     top = get_point(landmarks, MOUTH_TOP, w, h)
     bottom = get_point(landmarks, MOUTH_BOTTOM, w, h)
@@ -54,13 +52,18 @@ def mouth_aspect_ratio(landmarks, w, h):
 
     vertical = euclidean(top, bottom)
     horizontal = euclidean(left, right)
+
+    # return 0 to avoid division by zero and indicate mouth is closed
     if horizontal == 0:
         return 0.0
+
+    # higher ratio indicates mouth is more open.
     return vertical / horizontal
 
 
-# function that handles a specific step in the pipeline
+# estimate head pose (roll, yaw, pitch) from key facial landmarks
 def estimate_head_pose(landmarks, w, h):
+    # use outer eye corners, nose tip, mouth center, and cheeks for pose estimation
     left_eye = get_point(landmarks, LEFT_EYE_OUTER, w, h)
     right_eye = get_point(landmarks, RIGHT_EYE_OUTER, w, h)
     nose = get_point(landmarks, NOSE_TIP, w, h)
@@ -74,28 +77,33 @@ def estimate_head_pose(landmarks, w, h):
 
     dx = right_eye[0] - left_eye[0]
     dy = right_eye[1] - left_eye[1]
+
+    # roll is the tilt of the head (positive = right ear down, negative = left ear down)
     roll_deg = np.degrees(np.arctan2(dy, dx)) if abs(dx) > 1e-6 else 0.0
 
+    # yaw is the left-right rotation of the head. estimating by comparing distances from nose to cheeks.
     left_dist = euclidean(nose, left_cheek)
     right_dist = euclidean(nose, right_cheek)
     yaw_ratio = 0.0
     if (left_dist + right_dist) > 1e-6:
         yaw_ratio = (right_dist - left_dist) / (right_dist + left_dist)
 
+    # pitch is the up-down rotation of the head. estimating by comparing vertical position of nose to eye center, normalized by face height.
     face_vertical = max(mouth_center[1] - eye_center[1], 1e-6)
     pitch_ratio = (nose[1] - eye_center[1]) / face_vertical
     return float(roll_deg), float(yaw_ratio), float(pitch_ratio)
 
 
-# function that handles a specific step in the pipeline
+# enhance lighting and contrast of the input frame using CLAHE and gamma correction
 def enhance_lighting(frame):
-# convert image color space (bgr <-> rgb/lab)
+    # convert image color space (bgr <-> rgb/lab)
     lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
     l, a, b = cv2.split(lab)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     l = clahe.apply(l)
     merged = cv2.merge((l, a, b))
-# convert image color space (bgr <-> rgb/lab)
+
+    # convert image color space (bgr <-> rgb/lab)
     enhanced = cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
     gamma = 1.12
     table = np.array([(i / 255.0) ** (1.0 / gamma) * 255 for i in np.arange(256)]).astype("uint8")
@@ -104,15 +112,16 @@ def enhance_lighting(frame):
     return enhanced
 
 
-# class that groups related logic/state for this component
+# feature extractor for all facial features
 class FeatureExtractor:
-# initialize class state and configuration
+    # initialize thresholds and state for feature extraction
     def __init__(self, ear_threshold=0.23, yawn_mar_threshold=0.45, yawn_frames_threshold=12):
-# compute eye aspect ratio to detect eye closure
+        # compute eye aspect ratio to detect eye closure
         self.ear_threshold = ear_threshold
         self.yawn_mar_threshold = yawn_mar_threshold
         self.yawn_frames_threshold = yawn_frames_threshold
-# compute eye aspect ratio to detect eye closure
+
+        # compute eye aspect ratio to detect eye closure
         self.ear_history = deque(maxlen=10)
         self.blink_timestamps = deque(maxlen=90)
         self.eye_closed = False
@@ -121,7 +130,7 @@ class FeatureExtractor:
         self.last_yawn_time = 0.0
         self.yawn_count = 0
 
-# function that handles a specific step in the pipeline
+    # reset all states/counters for a new session
     def reset(self):
         self.ear_history.clear()
         self.blink_timestamps.clear()
@@ -129,20 +138,21 @@ class FeatureExtractor:
         self.closed_frames = 0
         self.mouth_open_frames = 0
 
-# compute features from face landmarks (ear, mar, blink, pose)
+    # compute features from face landmarks (ear, mar, blink, pose)
     def extract(self, landmarks, w, h):
-# compute eye aspect ratio to detect eye closure
+        # compute eye aspect ratio to detect eye closure
         left_ear = eye_aspect_ratio(landmarks, LEFT_EYE, w, h)
-# compute eye aspect ratio to detect eye closure
         right_ear = eye_aspect_ratio(landmarks, RIGHT_EYE, w, h)
-# compute eye aspect ratio to detect eye closure
         ear = (left_ear + right_ear) / 2.0
         self.ear_history.append(ear)
-# compute eye aspect ratio to detect eye closure
+
+        # compute eye aspect ratio to detect eye closure
         ear_smoothed = sum(self.ear_history) / len(self.ear_history)
 
-# current timestamp used for fps or timing logic
+        # current timestamp used for fps or timing logic
         now = time.time()
+
+        # if the smoothed EAR is below the threshold, consider the eye closed and update counters/timestamps accordingly
         if ear_smoothed < self.ear_threshold:
             if not self.eye_closed:
                 self.eye_closed = True
@@ -153,11 +163,12 @@ class FeatureExtractor:
                 self.eye_closed = False
             self.closed_frames = max(0, self.closed_frames - 2)
 
+        # remove old blink timestamps beyond 60 seconds to compute recent blink rate
         while self.blink_timestamps and now - self.blink_timestamps[0] > 60:
             self.blink_timestamps.popleft()
         blink_rate = float(len(self.blink_timestamps))
 
-# compute mouth aspect ratio to detect yawning
+        # compute mouth aspect ratio to detect yawning
         mar = mouth_aspect_ratio(landmarks, w, h)
         if mar > self.yawn_mar_threshold:
             self.mouth_open_frames += 1
@@ -167,6 +178,7 @@ class FeatureExtractor:
                 self.last_yawn_time = now
             self.mouth_open_frames = 0
 
+        # head pose estimation to detect posture issues (looking away, tilting, etc.)
         yawn_flag = 1.0 if self.mouth_open_frames >= self.yawn_frames_threshold else 0.0
         roll_deg, yaw_ratio, pitch_ratio = estimate_head_pose(landmarks, w, h)
         posture_flag = 1.0 if abs(roll_deg) > 14 or abs(yaw_ratio) > 0.12 or pitch_ratio < 0.47 or pitch_ratio > 0.72 else 0.0
@@ -185,6 +197,7 @@ class FeatureExtractor:
             "yawn_count": int(self.yawn_count),
         }
     
+    # resets all states/counters
     def reset_stats(self):
         self.reset()
         self.yawn_count = 0

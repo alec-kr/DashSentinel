@@ -1,6 +1,3 @@
-# sleepy guard app
-# real-time driver monitoring using face landmarks and adaptive scoring
-
 LEFT_EYE = [33, 160, 158, 133, 153, 144]
 RIGHT_EYE = [362, 385, 387, 263, 373, 380]
 LEFT_EYE_OUTER = 33

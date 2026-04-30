@@ -1,65 +1,61 @@
-# Sleepy Guard
+# DashSentinel
 
 ----Work in progress on README----
-A modular single-execution adaptive driver drowsiness monitor for Raspberry Pi and Linux PC.
 
+Real-time adaptive driver monitoring system.
+
+DashSentinel is a modular driver attentiveness system that uses computer vision to detect drowsiness and outputs real-time status to an embedded device (ESP8266/ESP32) via USB.
 
 ## Features
-- One execution script: `run_sleepy_guard.py`
-- Works on Linux PC and Raspberry Pi
+- One execution script: `run_dashsentinel.py`
 - Adaptive driver baseline saved across sessions
-- Drowsiness scoring from EAR, blink rate, yawning, head pose, and closed-eye duration
-- Optional buzzer alarm on Raspberry Pi GPIO
-- Optional desktop UI or headless mode
-- Optional CSV logging
+- Drowsiness scoring from eye aspect ratio (EAR), blink rate, yawning, head pose, and closed-eye duration
+- Can run a desktop UI or headless mode
 
-## Structure
-- `run_sleepy_guard.py` — single entrypoint
-- `sleepy_guard/cli.py` — CLI arguments
-- `sleepy_guard/app.py` — main runtime loop
-- `sleepy_guard/features.py` — feature extraction and lighting enhancement
-- `sleepy_guard/profile.py` — baseline persistence
-- `sleepy_guard/scoring.py` — adaptive scoring
-- `sleepy_guard/alarm.py` — desktop beep / Raspberry Pi buzzer
-- `sleepy_guard/logging_utils.py` — CSV event logging
-- `sleepy_guard/utils.py` — shared helpers
-- `sleepy_guard/constants.py` — FaceMesh landmark constants
+## Project Structure
+- `run_dashsentinel.py` — single entrypoint for execution
+- `DashSentinel/cli.py` — CLI arguments
+- `DashSentinel/app.py` — main runtime loop
+- `DashSentinel/features.py` — feature extraction and lighting enhancement
+- `DashSentinel/profile.py` — baseline persistence
+- `DashSentinel/scoring.py` — adaptive scoring
+- `DashSentinel/logging_utils.py` — CSV event logging
+- `DashSentinel/utils.py` — some shared helpers
+- `DashSentinel/constants.py` — FaceMesh landmark constants
 
 ## Install
 ```bash
 pip install -r requirements.txt
 ```
 
-## Run on Linux PC
+## Run with UI
 ```bash
-python3 run_sleepy_guard.py --show-ui --mirror
+python3 run_dashsentinel.py --show-ui --mirror
 ```
 
-## Run on Raspberry Pi
+## Run headless
 ```bash
-python3 run_sleepy_guard.py --headless --enable-alarm --log-csv
+python3 run_dashsentinel.py --headless --log-csv
 ```
 
 ## Optional flags
 ```bash
-python3 run_sleepy_guard.py --show-ui --draw-landmarks --refine-landmarks
+python3 run_dashsentinel.py --show-ui --draw-landmarks --refine-landmarks
 ```
 
 ## Notes
-- The same execution script works on both systems.
-- `RPi.GPIO` is only needed if you want the buzzer alarm on Raspberry Pi.
 - Data and logs are written to `./data` and `./logs` by default.
 
 
 ## startup baseline behavior
-- on launch, the app first builds a short personal baseline from the current user's face and normal behavior
+- on launch, the app builds a personal baseline from the current user's face and normal behavior
 - it waits for enough clean frames with a neutral face and normal posture
 - once that baseline is collected, it switches into normal sleepy / alert detection
 - use `--rebuild-baseline-on-start` if you want to ignore the saved profile and rebuild from scratch
 
 ### example
 ```bash
-python3 run_sleepy_guard.py --show-ui --mirror --rebuild-baseline-on-start
+python3 run_dashsentinel.py --show-ui --mirror --rebuild-baseline-on-start
 ```
 
 
@@ -73,23 +69,12 @@ Install dependency:
 pip install pyserial
 ```
 
-Run with serial enabled:
+Run with serial enabled and select your port with ```--esp-port```:
 
 ```bash
-python3 run_sleepy_guard.py --show-ui --mirror --enable-esp-serial --esp-port /dev/ttyUSB0
+python3 run_dashsentinel.py --show-ui --mirror --enable-esp-serial --esp-port /dev/ttyUSB0
 ```
 
-Other common ports:
-
-```bash
-python3 run_sleepy_guard.py --show-ui --mirror --enable-esp-serial --esp-port /dev/ttyACM0
-```
-
-On Windows, use something like:
-
-```bash
-python run_sleepy_guard.py --show-ui --mirror --enable-esp-serial --esp-port COM3
-```
 
 Serial line format sent to the ESP:
 
@@ -101,10 +86,4 @@ Example:
 
 ```text
 ALERT,87.4,0.123
-```
-
-An example Arduino sketch is included in:
-
-```text
-esp8266_display/DashSentinelSerialDisplay.ino
 ```

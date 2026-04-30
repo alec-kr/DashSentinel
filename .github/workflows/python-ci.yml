@@ -31,7 +31,7 @@ jobs:
         run: python -c "import src.app"
 
       - name: CLI help check
-        run: python run_sleepy_guard.py --help
+        run: python run_dashsentinel.py --help
 
       # tests to be added
       # - name: Run tests
