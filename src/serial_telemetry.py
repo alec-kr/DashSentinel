@@ -6,7 +6,9 @@ import time
 import serial
 
 class SerialTelemetry:
-    # default port can be changed with --serial-port, baud rate can be changed with --serial-baud, and send interval can be changed with --serial-interval
+    # default port can be changed with --serial-port, 
+    # baud rate can be changed with --serial-baud, 
+    # and send interval can be changed with --serial-interval
     def __init__(self, enabled=False, port="/dev/ttyUSB0", baud=115200, interval=0.5):
         self.enabled = enabled
         self.port = port

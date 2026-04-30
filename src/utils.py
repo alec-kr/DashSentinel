@@ -10,9 +10,11 @@ import numpy as np
 
 
 def clamp(value, low, high):
+    """clamp between high and low"""
     return max(low, min(high, value))
 
 def euclidean(p1, p2):
+    """calculates the euclidean distance between two points"""
     return float(np.linalg.norm(np.array(p1) - np.array(p2)))
 
 
