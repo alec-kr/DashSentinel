@@ -27,19 +27,20 @@ def get_point(landmarks, idx, w, h):
     return np.array([lm.x * w, lm.y * h], dtype=np.float32)
 
 def eye_aspect_ratio(landmarks, eye_indices, w, h):
-    """get eye aspect ratio for given eye landmarks"""
-    pts = []
-    for idx in eye_indices:
-        lm = landmarks[idx]
-        pts.append((lm.x * w, lm.y * h))
+    """Get eye aspect ratio for given eye landmarks."""
+    pts = [get_point(landmarks, idx, w, h) for idx in eye_indices]
 
-    # unpack points for EAR calculation. 6 points are used for EAR: 2 horizontal and 4 vertical
+    if len(pts) != 6:
+        return 0.0
+
     p1, p2, p3, p4, p5, p6 = pts
     vertical_1 = euclidean(p2, p6)
     vertical_2 = euclidean(p3, p5)
     horizontal = euclidean(p1, p4)
+
     if horizontal == 0:
         return 0.0
+
     return (vertical_1 + vertical_2) / (2.0 * horizontal)
 
 def mouth_aspect_ratio(landmarks, w, h):
@@ -60,37 +61,35 @@ def mouth_aspect_ratio(landmarks, w, h):
     return vertical / horizontal
 
 def estimate_head_pose(landmarks, w, h):
-    """estimate head pose (roll, yaw, pitch) from key facial landmarks"""
-    # use outer eye corners, nose tip, mouth center, and cheeks for pose estimation
-    left_eye = get_point(landmarks, LEFT_EYE_OUTER, w, h)
-    right_eye = get_point(landmarks, RIGHT_EYE_OUTER, w, h)
-    nose = get_point(landmarks, NOSE_TIP, w, h)
-    mouth_top = get_point(landmarks, MOUTH_TOP, w, h)
-    mouth_bottom = get_point(landmarks, MOUTH_BOTTOM, w, h)
-    left_cheek = get_point(landmarks, LEFT_CHEEK, w, h)
-    right_cheek = get_point(landmarks, RIGHT_CHEEK, w, h)
+    """estimate head pose: roll, yaw, and pitch."""
+    points = {
+        "left_eye": get_point(landmarks, LEFT_EYE_OUTER, w, h),
+        "right_eye": get_point(landmarks, RIGHT_EYE_OUTER, w, h),
+        "nose": get_point(landmarks, NOSE_TIP, w, h),
+        "mouth_top": get_point(landmarks, MOUTH_TOP, w, h),
+        "mouth_bottom": get_point(landmarks, MOUTH_BOTTOM, w, h),
+        "left_cheek": get_point(landmarks, LEFT_CHEEK, w, h),
+        "right_cheek": get_point(landmarks, RIGHT_CHEEK, w, h),
+    }
 
-    eye_center = (left_eye + right_eye) / 2.0
-    mouth_center = (mouth_top + mouth_bottom) / 2.0
+    eye_center = (points["left_eye"] + points["right_eye"]) / 2.0
+    mouth_center = (points["mouth_top"] + points["mouth_bottom"]) / 2.0
 
-    dx = right_eye[0] - left_eye[0]
-    dy = right_eye[1] - left_eye[1]
-
-    # roll is the tilt of the head (positive = right ear down, negative = left ear down)
+    dx = points["right_eye"][0] - points["left_eye"][0]
+    dy = points["right_eye"][1] - points["left_eye"][1]
     roll_deg = np.degrees(np.arctan2(dy, dx)) if abs(dx) > 1e-6 else 0.0
 
-    # yaw is the left-right rotation of the head
-    # estimating by distance from nose to cheeks
-    left_dist = euclidean(nose, left_cheek)
-    right_dist = euclidean(nose, right_cheek)
-    yaw_ratio = 0.0
-    if (left_dist + right_dist) > 1e-6:
-        yaw_ratio = (right_dist - left_dist) / (right_dist + left_dist)
+    left_dist = euclidean(points["nose"], points["left_cheek"])
+    right_dist = euclidean(points["nose"], points["right_cheek"])
+    total_dist = left_dist + right_dist
 
-    # pitch is the up-down rotation of the head
-    # estimating by comparing vertical position of nose to eye center
+    yaw_ratio = 0.0
+    if total_dist > 1e-6:
+        yaw_ratio = (right_dist - left_dist) / total_dist
+
     face_vertical = max(mouth_center[1] - eye_center[1], 1e-6)
-    pitch_ratio = (nose[1] - eye_center[1]) / face_vertical
+    pitch_ratio = (points["nose"][1] - eye_center[1]) / face_vertical
+
     return float(roll_deg), float(yaw_ratio), float(pitch_ratio)
 
 def enhance_lighting(frame):

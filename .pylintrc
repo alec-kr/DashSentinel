@@ -2,4 +2,4 @@
 extension-pkg-allow-list=cv2,mediapipe
 
 [TYPECHECK]
-generated-members=cv2.*,mediapipe.*
+generated-members=cv2.*,mediapipe.*,mediapipe.solutions.*

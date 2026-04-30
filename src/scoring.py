@@ -1,3 +1,5 @@
+"""Adaptive scoring system for drowsiness detection"""
+
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -14,8 +16,10 @@ class ScoreOutput:
     attentiveness: float
     reason: str
 
+# pylint: disable=too-many-instance-attributes
 class AdaptiveScorer:
     """main class for scoring drowsiness based on profile and current features"""
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         profile,
@@ -111,6 +115,7 @@ class AdaptiveScorer:
             reason="face not visible",
         )
 
+    # pylint: disable=too-many-locals
     def score(self, features: dict) -> ScoreOutput:
         """main scoring function that takes current features, compares to profile, 
         and produces a drowsiness score and related stats"""
@@ -193,8 +198,8 @@ class AdaptiveScorer:
         # as we gather more data and approach the calibration time limit
         if self.in_calibration():
             self.state = "CALIBRATING"
-            confidence = clamp(0.50 + 0.50 * 
-                               (self.seconds_since_start() / max(self.calibration_seconds, 1)), 
+            confidence = clamp(0.50 + 0.50 *
+                               (self.seconds_since_start() / max(self.calibration_seconds, 1)),
                             0.0, 1.0)
             reason = "learning normal baseline"
         else:
@@ -208,7 +213,12 @@ class AdaptiveScorer:
             if self.state == "NO_FACE":
                 self.state = "ALERT"
             self._promote_state(desired_state)
-            confidence = smoothed_score if self.state in ("WARNING", "DROWSY") else (1.0 - smoothed_score)
+
+            if self.state in ("WARNING", "DROWSY"):
+                confidence = smoothed_score
+            else:
+                confidence = 1.0 - smoothed_score
+
             reason = self._build_reason(components)
 
         attentiveness = (1.0 - smoothed_score) * 100.0

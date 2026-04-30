@@ -21,7 +21,7 @@ from .scoring import AdaptiveScorer, ScoreOutput
 from .serial_telemetry import SerialTelemetry
 from .utils import now_ts
 
-
+# pylint: disable=too-many-instance-attributes,too-few-public-methods
 class DashSentinelApp:
     """main application class that encapsulates system"""
     def __init__(self, args):
@@ -349,6 +349,7 @@ class DashSentinelApp:
         return enough_time and enough_frames
 
     # run initial baseline collection to build the profile, then process the frames to update scores
+    # pylint: disable=too-many-locals
     def _run_startup_baseline(self, cap, face_mesh):
         self.extractor.reset()  # reset to clear any existing states
         self.baseline_frames_collected = 0
@@ -419,6 +420,7 @@ class DashSentinelApp:
         # reset extractor to start fresh for active phase
         self.extractor.reset()
 
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def run(self):
         """main loop to process video frames, extract features, 
         compute scores, log events, and handle telemetry"""
