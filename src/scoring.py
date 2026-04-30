@@ -53,20 +53,21 @@ class AdaptiveScorer:
     def in_calibration(self):
         return self.seconds_since_start() < self.calibration_seconds or self.profile.total_updates < 150
 
-    # helper to compute normalized delta for head pose features, with clamping to avoid extreme outliers dominating the score
     def _normalized_delta(self, value, mean, std, floor):
+        """helper to compute normalized delta for head pose features, 
+        with clamping to avoid extreme outliers dominating the score"""
         return clamp(abs(value - mean) / max(2.5 * std, floor), 0.0, 1.0)
 
-    # produce a reason for current score based on most significant contributing factor
     def _build_reason(self, components):
+        """produce a reason for current score based on most significant contributing factor"""
         ranked = sorted(components.items(), key=lambda item: item[1], reverse=True)
         top = [name for name, score in ranked if score >= 0.18][:2]
         if not top:
             return "normal behavior"
         return ", ".join(top)
 
-    # requires a certain number of consecutive frames to transition to a new state
     def _promote_state(self, desired_state):
+        """requires a certain number of consecutive frames to transition to a new state"""
         if desired_state == self.state:
             self.pending_state = None
             self.pending_frames = 0
@@ -83,8 +84,8 @@ class AdaptiveScorer:
             self.pending_state = None
             self.pending_frames = 0
 
-    # if no face is detected within n frames, switch to NO_FACE state
     def update_no_face(self):
+        """if no face is detected within n frames, switch to NO_FACE state"""
         self.no_face_frames += 1
         if self.no_face_frames >= self.no_face_hold_frames:
             self.state = "NO_FACE"
@@ -93,7 +94,7 @@ class AdaptiveScorer:
 
         # calculate attentiveness based on history, but if no history exists (mostly at startup), default to 100%
         attentiveness = sum(self.attention_history) / len(self.attention_history) if self.attention_history else 100.0
-        
+
         return ScoreOutput(
             phase="ACTIVE" if not self.in_calibration() else "CALIBRATING",
             status="NO FACE",
@@ -103,19 +104,20 @@ class AdaptiveScorer:
             reason="face not visible",
         )
 
-    # main scoring function that takes current features, compares to profile, and produces a drowsiness score and related stats
     def score(self, features: dict) -> ScoreOutput:
+        """main scoring function that takes current features, compares to profile, 
+        and produces a drowsiness score and related stats"""
         self.no_face_frames = 0
 
         # compute the various components of the drowsiness score based on deviations from the profile
         ear_drop = clamp((self.profile.mean("ear") - features["ear"]) / max(2.2 * self.profile.std("ear"), 0.03), 0.0, 1.0)
         low_blink = clamp((self.profile.mean("blink_rate") - features["blink_rate"]) / max(2.0 * self.profile.std("blink_rate"), 4.0), 0.0, 1.0)
         yawn_mag = clamp((features["mar"] - max(self.profile.mean("mar") + 2.0 * self.profile.std("mar"), 0.34)) / 0.22, 0.0, 1.0)
-        
+
         roll_delta = 1.0 if abs(features["roll_deg"]) > 15.0 else 0.0
         yaw_delta = 1.0 if abs(features["yaw_ratio"]) > 0.8 else 0.0
         pitch_delta = 1.0 if features["pitch_ratio"] < 0.20 or features["pitch_ratio"] > 0.85 else 0.0
-        
+
         look_away_duration = features.get("look_away_norm", 0.0)
         head_tilt_duration = features.get("head_tilt_norm", 0.0)
         head_back_duration = features.get("head_back_norm", 0.0)
@@ -130,7 +132,7 @@ class AdaptiveScorer:
             + 0.08 * head_back_duration
             + 0.06 * bad_pose_duration
         )
-        
+
         components = {
             "eye closure": 0.28 * ear_drop + 0.20 * features["closed_frames_norm"],
             "low blink rate": 0.08 * low_blink,
@@ -190,9 +192,9 @@ class AdaptiveScorer:
             attentiveness=float(attentiveness_smoothed),
             reason=reason,
         )
-    
-    # used to reset score history and state machine
+
     def reset_stats(self):
+        """reset score history and state machine"""
         self.attention_history.clear()
         self.score_history.clear()
 

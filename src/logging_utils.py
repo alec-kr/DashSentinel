@@ -15,10 +15,12 @@ class EventLogger:
             ensure_parent(path)
             if not os.path.exists(path):
                 with open(path, "w", encoding="utf-8") as f:
-                    f.write("timestamp,status,confidence,drowsy_score,attentiveness,ear,mar,blink_rate,roll_deg,yaw_ratio,pitch_ratio,closed_frames_norm,yawn_flag,posture_flag,yawn_count\n")
+                    f.write(
+                        "timestamp,status,confidence,drowsy_score,attentiveness,ear,mar,blink_rate,roll_deg,yaw_ratio,pitch_ratio,closed_frames_norm,yawn_flag,posture_flag,yawn_count\n"
+                    )
 
-    # periodically update logs with current status and features
     def write_periodic(self, status: str, confidence: float, drowsy_score: float, attentiveness: float, features: dict, every_seconds: float = 1.0):
+        """periodically update logs with current status and features"""
         if not self.enabled:
             return
         # current timestamp used for fps or timing logic

@@ -35,10 +35,14 @@ class RunningStat:
     def from_dict(cls, data, default_mean, default_var):
         if not data:
             return cls(default_mean, default_var, 0.0)
-        return cls(data.get("mean", default_mean), data.get("var", default_var), data.get("count", 0.0))
+
+        return cls(
+            data.get("mean", default_mean), data.get("var", default_var), data.get("count", 0.0)
+        )
 
 
 class DriverProfile:
+    """manages user-specific statistics for adaptive scoring and thresholds"""
     # defaults for new users or missing data
     DEFAULTS = {
         "ear": (0.28, 0.0025),
@@ -55,9 +59,9 @@ class DriverProfile:
         self.sessions = 0
         self.total_updates = 0
         self._load()
-    
-    # save profile to disk
+
     def save(self):
+        """save profile to disk"""
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         with open(self.path, "w") as f:
             json.dump({
@@ -66,8 +70,8 @@ class DriverProfile:
                 "stats": {k: v.to_dict() for k, v in self.stats.items()}
             }, f, indent=2)
 
-    # load data from disk (profile or config)
     def _load(self):
+        """load data from disk (profile or config)"""
         payload = {}
         if os.path.exists(self.path):
             try:
@@ -83,26 +87,28 @@ class DriverProfile:
         for key, (default_mean, default_var) in self.DEFAULTS.items():
             self.stats[key] = RunningStat.from_dict(saved.get(key), default_mean, default_var)
 
-    # reset baseline completely (for new user / recalibration)
     def reset_baseline(self):
+        """reset baseline completely (for new user / recalibration)"""
         self.total_updates = 0
         self.stats = {}
 
         for key, (mean, var) in self.DEFAULTS.items():
             self.stats[key] = RunningStat(mean, var, 0)
-    
+
     def mean(self, key: str) -> float:
+        """get current mean for a given feature"""
         return self.stats[key].mean
 
     def std(self, key: str) -> float:
+        """get current standard deviation for a given feature"""
         return self.stats[key].std
 
-    # update profile with new data only from alert frames
     def update_from_alert_frame(self, features: dict):
+        """update profile with new data only from alert frames"""
         for key in self.DEFAULTS.keys():
             self.stats[key].update(float(features[key]))
         self.total_updates += 1
 
-    # increment session count (for tracking usage and determining when to save profile)
     def begin_session(self):
+        """increment session count"""
         self.sessions += 1

@@ -1,3 +1,10 @@
+"""
+Main application logic.
+Initializes the camera feed, processes video frames to extract facial features,
+computes drowsiness scores based on an adaptive profile,
+and manages the overall state of the application including logging and telemetry.
+"""
+
 import signal
 import sys
 import time
@@ -169,7 +176,7 @@ class DashSentinelApp:
             2,
         )
 
-        # if face is detected, show key features and metrics for debugging and insight into the scoring
+        # if face is detected, show key features and metrics
         if features is not None:
             cv2.putText(
                 frame,
@@ -191,7 +198,11 @@ class DashSentinelApp:
             )
             cv2.putText(
                 frame,
-                f"roll: {features['roll_deg']:.1f}  yaw: {features['yaw_ratio']:.2f}  pitch: {features['pitch_ratio']:.2f}",
+                (
+                    f"roll: {features['roll_deg']:.1f}"
+                    f"yaw: {features['yaw_ratio']:.2f}"
+                    f"pitch: {features['pitch_ratio']:.2f}"
+                ),
                 (18, 278),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.50,
@@ -200,7 +211,11 @@ class DashSentinelApp:
             )
             cv2.putText(
                 frame,
-                f"closed: {features['closed_frames_norm']:.2f}  pose: {features.get('bad_pose_norm', 0.0):.2f}  away: {features.get('look_away_norm', 0.0):.2f}",
+                (
+                    f"closed: {features['closed_frames_norm']:.2f}"
+                    f"pose: {features.get('bad_pose_norm', 0.0):.2f}"
+                    f"away: {features.get('look_away_norm', 0.0):.2f}"
+                ),
                 (18, 304),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.50,

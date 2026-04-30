@@ -1,7 +1,13 @@
+"""all arguments for the command line interface (CLI) are defined here"""
+
 import argparse
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Adaptive driver monitor for edge devices")
+    """parse command line arguments for the driver monitoring system"""
+
+    parser = argparse.ArgumentParser(
+        description="Adaptive driver monitor for edge devices"
+    )
     parser.add_argument("--camera", type=int, default=0)
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, default=360)
@@ -9,8 +15,12 @@ def parse_args():
     parser.add_argument("--process-every-n-frames", type=int, default=1)
     parser.add_argument("--mirror", action="store_true")
 
-    parser.add_argument("--profile-path", type=str, default="./data/driver_profile.json")
-    parser.add_argument("--log-path", type=str, default="./logs/dashsentinel_events.csv")
+    parser.add_argument(
+        "--profile-path", type=str, default="./data/driver_profile.json"
+    )
+    parser.add_argument(
+        "--log-path", type=str, default="./logs/dashsentinel_events.csv"
+    )
     parser.add_argument("--log-csv", action="store_true")
 
     parser.add_argument("--calibration-seconds", type=int, default=25)
@@ -37,8 +47,24 @@ def parse_args():
     parser.add_argument("--window-name", type=str, default="DashSentinel")
     parser.add_argument("--save-profile-every-seconds", type=int, default=15)
 
-    parser.add_argument("--enable-esp-serial", action="store_true", help="send status and attentiveness to an esp8266/esp32 over usb serial")
-    parser.add_argument("--esp-port", type=str, default="/dev/ttyUSB0", help="usb serial port for esp8266, e.g. /dev/ttyUSB0, /dev/ttyACM0, or COM3")
-    parser.add_argument("--esp-baud", type=int, default=115200, help="serial baud rate for esp8266")
-    parser.add_argument("--esp-send-interval", type=float, default=0.5, help="seconds between serial telemetry updates")
+    parser.add_argument(
+        "--enable-esp-serial",
+        action="store_true",
+        help="send status and attentiveness to an esp8266/esp32 over usb serial",
+    )
+    parser.add_argument(
+        "--esp-port",
+        type=str,
+        default="/dev/ttyUSB0",
+        help="usb serial port for esp8266, e.g. /dev/ttyUSB0, /dev/ttyACM0, or COM3",
+    )
+    parser.add_argument(
+        "--esp-baud", type=int, default=115200, help="serial baud rate for esp8266"
+    )
+    parser.add_argument(
+        "--esp-send-interval",
+        type=float,
+        default=0.5,
+        help="seconds between serial telemetry updates",
+    )
     return parser.parse_args()
