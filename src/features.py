@@ -118,7 +118,7 @@ class FeatureExtractor:
     """feature extractor for all facial features"""
 
     # initialize thresholds and state for feature extraction
-    def __init__(self, ear_threshold=0.23, yawn_mar_threshold=0.45, yawn_frames_threshold=12):
+    def __init__(self, ear_threshold=0.23, yawn_mar_threshold=0.4, yawn_frames_threshold=30):
         # compute eye aspect ratio to detect eye closure
         self.ear_threshold = ear_threshold
         self.yawn_mar_threshold = yawn_mar_threshold
@@ -220,7 +220,7 @@ class FeatureExtractor:
         pitch_smooth = sum(self.pitch_history) / len(self.pitch_history)
 
         # detect sustained unsafe head posture
-        looking_away = abs(yaw_smooth) > 0.8
+        looking_away = abs(yaw_smooth) > 0.7
         head_tilted = abs(roll_smooth) > 15.0
         head_back_or_down = pitch_smooth < 0.20 or pitch_smooth > 0.85
         bad_pose_now = looking_away or head_tilted or head_back_or_down
