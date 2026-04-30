@@ -104,12 +104,16 @@ def enhance_lighting(frame):
     # convert image color space (bgr <-> rgb/lab)
     enhanced = cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
     gamma = 1.12
-    table = np.array([(i / 255.0) ** (1.0 / gamma) * 255 for i in np.arange(256)]).astype("uint8")
+    table = np.array(
+        [
+            (i / 255.0) ** (1.0 / gamma) * 255 for i in np.arange(256)
+        ]
+    ).astype("uint8")
     enhanced = cv2.LUT(enhanced, table)
     enhanced = cv2.bilateralFilter(enhanced, 5, 35, 35)
     return enhanced
 
-
+# pylint: disable=too-many-instance-attributes
 class FeatureExtractor:
     """feature extractor for all facial features"""
 
@@ -158,6 +162,7 @@ class FeatureExtractor:
         self.head_tilt_frames = 0
         self.head_back_frames = 0
 
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def extract(self, landmarks, w, h):
         """compute features from face landmarks (ear, mar, blink, pose)"""
         # compute eye aspect ratio to detect eye closure
