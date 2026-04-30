@@ -111,15 +111,31 @@ class AdaptiveScorer:
         ear_drop = clamp((self.profile.mean("ear") - features["ear"]) / max(2.2 * self.profile.std("ear"), 0.03), 0.0, 1.0)
         low_blink = clamp((self.profile.mean("blink_rate") - features["blink_rate"]) / max(2.0 * self.profile.std("blink_rate"), 4.0), 0.0, 1.0)
         yawn_mag = clamp((features["mar"] - max(self.profile.mean("mar") + 2.0 * self.profile.std("mar"), 0.34)) / 0.22, 0.0, 1.0)
-        roll_delta = self._normalized_delta(features["roll_deg"], self.profile.mean("roll_deg"), self.profile.std("roll_deg"), 12.0)
-        yaw_delta = self._normalized_delta(features["yaw_ratio"], self.profile.mean("yaw_ratio"), self.profile.std("yaw_ratio"), 0.08)
-        pitch_delta = self._normalized_delta(features["pitch_ratio"], self.profile.mean("pitch_ratio"), self.profile.std("pitch_ratio"), 0.12)
+        
+        roll_delta = 1.0 if abs(features["roll_deg"]) > 15.0 else 0.0
+        yaw_delta = 1.0 if abs(features["yaw_ratio"]) > 0.8 else 0.0
+        pitch_delta = 1.0 if features["pitch_ratio"] < 0.20 or features["pitch_ratio"] > 0.85 else 0.0
+        
+        look_away_duration = features.get("look_away_norm", 0.0)
+        head_tilt_duration = features.get("head_tilt_norm", 0.0)
+        head_back_duration = features.get("head_back_norm", 0.0)
+        bad_pose_duration = features.get("bad_pose_norm", 0.0)
 
+        pose_component = (
+            0.10 * roll_delta
+            + 0.12 * yaw_delta
+            + 0.10 * pitch_delta
+            + 0.12 * look_away_duration
+            + 0.08 * head_tilt_duration
+            + 0.08 * head_back_duration
+            + 0.06 * bad_pose_duration
+        )
+        
         components = {
-            "eye closure": 0.30 * ear_drop + 0.18 * features["closed_frames_norm"],
-            "low blink rate": 0.10 * low_blink,
-            "yawning": 0.14 * yawn_mag + 0.10 * features["yawn_flag"],
-            "head tilt": 0.08 * roll_delta + 0.05 * yaw_delta + 0.05 * pitch_delta,
+            "eye closure": 0.28 * ear_drop + 0.20 * features["closed_frames_norm"],
+            "low blink rate": 0.08 * low_blink,
+            "yawning": 0.10 * yawn_mag + 0.08 * features["yawn_flag"],
+            "looking away/head pose": pose_component,
         }
 
         drowsy_score = sum(components.values())
@@ -129,10 +145,11 @@ class AdaptiveScorer:
 
         # if there are no extreme indicators of drowsiness but the score is still elevated, treat it as a stable alert and use it to update the profile baseline
         stable_alert = (
-            smoothed_score < 0.28
+            smoothed_score < 0.24
             and features["yawn_flag"] < 0.5
             and features["posture_flag"] < 0.5
-            and features["closed_frames_norm"] < 0.2
+            and features["closed_frames_norm"] < 0.15
+            and features.get("bad_pose_norm", 0.0) < 0.12
         )
 
         # if we're in calibration or if we have a stable alert, update the profile with the current features to refine the baseline
