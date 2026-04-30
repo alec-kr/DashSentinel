@@ -300,7 +300,11 @@ class DashSentinelApp:
         if features is not None:
             cv2.putText(
                 frame,
-                f"ear: {features['ear']:.3f}  mar: {features['mar']:.3f}  blink/min: {features['blink_rate']:.1f}",
+                (
+                    f"ear: {features['ear']:.3f}  "
+                    f"mar: {features['mar']:.3f}  "
+                    f"blink/min: {features['blink_rate']:.1f}"
+                ),
                 (18, 158),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.54,
@@ -397,7 +401,11 @@ class DashSentinelApp:
                     break
             else:
                 sys.stdout.write(
-                    f"\r[{now_ts()}] building baseline frames={self.baseline_frames_collected} elapsed={elapsed:.1f}s "
+                    (
+                        f"\r[{now_ts()}] building baseline "
+                        f"frames={self.baseline_frames_collected} "
+                        f"elapsed={elapsed:.1f}s "
+                    )
                 )
                 sys.stdout.flush()
 
@@ -437,7 +445,8 @@ class DashSentinelApp:
                     if self.args.mirror:
                         frame = cv2.flip(frame, 1)
 
-                    # downscale frame for faster processing...mediapipe can be a bottleneck at higher resolutions
+                    # downscale frame for faster processing
+                    # mediapipe can be a bottleneck at higher resolutions
                     frame = cv2.resize(
                         frame,
                         (self.args.width, self.args.height),
@@ -515,7 +524,8 @@ class DashSentinelApp:
                         self.scorer.start_time = time.time()
                         print("baseline reset requested from esp8266")
 
-                    # resetting stats clears the current state of all features and scores, but keeps the existing baseline profile data
+                    # resetting stats clears the current state of all features and scores,
+                    # but keeps the existing baseline profile data
                     elif cmd == "RESET_STATS":
                         self.scorer.reset_stats()
                         self.extractor.reset_stats()
@@ -542,7 +552,14 @@ class DashSentinelApp:
                     else:
                         if process_this:
                             sys.stdout.write(
-                                f"\r[{now_ts()}] phase={score.phase} status={score.status} conf={score.confidence:.2f} score={score.drowsy_score:.2f} attentiveness={score.attentiveness:.1f} reason={score.reason}   "
+                                (
+                                    f"\r[{now_ts()}] phase={score.phase} "
+                                    f"status={score.status} "
+                                    f"conf={score.confidence:.2f} "
+                                    f"score={score.drowsy_score:.2f} "
+                                    f"attentiveness={score.attentiveness:.1f} "
+                                    f"reason={score.reason}   "
+                                )
                             )
                             sys.stdout.flush()
 

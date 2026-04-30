@@ -87,7 +87,7 @@ def estimate_head_pose(landmarks, w, h):
     if (left_dist + right_dist) > 1e-6:
         yaw_ratio = (right_dist - left_dist) / (right_dist + left_dist)
 
-    # pitch is the up-down rotation of the head. 
+    # pitch is the up-down rotation of the head
     # estimating by comparing vertical position of nose to eye center
     face_vertical = max(mouth_center[1] - eye_center[1], 1e-6)
     pitch_ratio = (nose[1] - eye_center[1]) / face_vertical

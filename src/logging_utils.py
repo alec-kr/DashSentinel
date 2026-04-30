@@ -27,7 +27,8 @@ class EventLogger:
                         + "\n"
                     )
 
-    def write_periodic(self, status: str, confidence: float, drowsy_score: float, attentiveness: float, features: dict, every_seconds: float = 1.0):
+    def write_periodic(self, status: str, confidence: float, drowsy_score: float, 
+                       attentiveness: float, features: dict, every_seconds: float = 1.0):
         """periodically update logs with current status and features"""
         if not self.enabled:
             return
