@@ -11,7 +11,7 @@ import time
 from collections import deque
 
 import cv2
-from mediapipe import mediapipe as mp
+import mediapipe as mp
 
 from .constants import LEFT_EYE, MOUTH_BOTTOM, MOUTH_TOP, NOSE_TIP, RIGHT_EYE
 from .features import FeatureExtractor, enhance_lighting
