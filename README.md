@@ -2,6 +2,19 @@
 
 **Real-time Driver Drowsiness Detection System with Embedded Feedback Interface**
 
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="media/ui-screenshots/alert.png" width="380"><br>
+      <b>Left:</b> Real-time facial tracking and attentiveness scoring
+    </td>
+    <td align="center">
+      <img src="media/breadboard-photos/breadboard-alert.jpeg" width="360"><br>
+      <b>Right:</b> ESP8266 hardware interface
+    </td>
+  </tr>
+</table>
+
 ## Overview
 
 The system combines:
