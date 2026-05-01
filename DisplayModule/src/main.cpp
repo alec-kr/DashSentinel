@@ -40,6 +40,7 @@ const unsigned long debounceMs = 250;
 // led state modes
 enum LedMode {
   LED_OFF,
+  LED_BASELINE,
   LED_ALERT,
   LED_WARNING,
   LED_DROWSY
@@ -56,7 +57,7 @@ void offLeds() {
   digitalWrite(yellowPin, LOW);
 }
 
-// change led behavior based on driver state
+// change led behavior based on current driver status
 void setLedMode(LedMode mode) {
   if (ledMode == mode) {
     return;
@@ -64,24 +65,25 @@ void setLedMode(LedMode mode) {
 
   ledMode = mode;
   ledOn = false;
-  lastLedToggle = 0;
-  offLeds();
-}
+  lastLedToggle = millis();
 
-// update leds without blocking serial/buttons
-void updateLeds() {
-  unsigned long now = millis();
+  offLeds();
 
   if (ledMode == LED_ALERT) {
-    offLeds();
     digitalWrite(greenPin, HIGH);
+  }
+  else if (ledMode == LED_BASELINE) {
+    digitalWrite(yellowPin, HIGH);
+  }
+}
+
+// update blinking leds without blocking button or serial reads
+void updateLeds() {
+  if (ledMode == LED_ALERT || ledMode == LED_OFF || ledMode == LED_BASELINE) {
     return;
   }
 
-  if (ledMode == LED_OFF) {
-    offLeds();
-    return;
-  }
+  unsigned long now = millis();
 
   int activePin = yellowPin;
   unsigned long interval = 250;
@@ -119,7 +121,13 @@ void drawDisplay() {
 
   display.setTextSize(2);
   display.setCursor(0, 24);
-  display.print(currentStatus);
+
+  if (currentStatus == "LEARNING BASELINE") {
+    display.print("LEARNING");
+  }
+  else {
+    display.println(currentStatus);
+  }
 
   display.setTextSize(1);
   display.setCursor(0, 48);
@@ -134,7 +142,7 @@ void drawDisplay() {
   display.display();
 }
 
-// parse incoming serial data in format "status,attentiveness,drowsyScore"
+// parse incoming serial data once in format "status,attentiveness,drowsyScore"
 void parseLine(String line) {
   line.trim();
 
@@ -151,7 +159,10 @@ void parseLine(String line) {
 
   if (currentStatus == "ALERT") {
     setLedMode(LED_ALERT);
-  } 
+  }
+  else if (currentStatus == "LEARNING BASELINE") {
+    setLedMode(LED_BASELINE);
+  }
   else if (currentStatus == "WARNING") {
     setLedMode(LED_WARNING);
   } 
@@ -186,6 +197,8 @@ void checkButtons() {
 }
 
 void setup() {
+  // using internal pullup resistors for buttons
+  // so they read high when not pressed and low when pressed
   pinMode(BTN_RESET_BASELINE, INPUT_PULLUP);
   pinMode(BTN_RESET_STATS, INPUT_PULLUP);
   pinMode(redPin, OUTPUT);
@@ -214,10 +227,11 @@ void setup() {
 
 void loop() {
   checkButtons();
-  updateLeds();
 
   if (Serial.available()) {
     String line = Serial.readStringUntil('\n');
     parseLine(line);
   }
+
+  updateLeds();
 }
