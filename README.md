@@ -1,32 +1,82 @@
-# DashSentinel
+# 🚗 DashSentinel
 
-DashSentinel is a modular driver attentiveness system that uses computer vision to detect drowsiness and outputs real-time status to an embedded device (ESP8266/ESP32) via USB.
+Real-time Driver Drowsiness Detection System with Embedded Feedback Interface
+
+## Overview
+
+The system combines:
+
+- Computer Vision (MediaPipe / OpenCV) for facial feature extraction
+- Machine Learning / Heuristics for drowsiness classification
+- Embedded System (ESP8266) for real-time display and user interaction
+
+It is designed as a prototype for a deployable driver safety product in fleets/personal use.
 
 ## Features
-- One execution script: `run_dashsentinel.py`
-- Adaptive driver baseline saved across sessions
-- Drowsiness scoring from eye aspect ratio (EAR), blink rate, yawning, head pose, and closed-eye duration
-- Can run a desktop UI or headless mode
+- Real-time face tracking and feature extraction
+- Driver attentiveness scoring (%)
+- Drowsiness detection based on:
+    - eye closure patterns
+    - yawning detection
+    - attentiveness %
 
-## Project Structure
-- `run_dashsentinel.py` — single entrypoint for execution
-- `DashSentinel/cli.py` — CLI arguments
-- `DashSentinel/app.py` — main runtime loop
-- `DashSentinel/features.py` — feature extraction and lighting enhancement
-- `DashSentinel/profile.py` — baseline persistence
-- `DashSentinel/scoring.py` — adaptive scoring
-- `DashSentinel/logging_utils.py` — CSV event logging
-- `DashSentinel/utils.py` — some shared helpers
-- `DashSentinel/constants.py` — FaceMesh landmark constants
+- OLED display output:
+    - status (ALERT / WARNING / DROWSY)
+
+- LED indicators:
+    - 🟢 ALERT → solid green
+    - 🟡 WARNING → blinking yellow
+    - 🔴 DROWSY → fast blinking red
+
+- Physical buttons:
+    - Reset baseline (user-specific calibration)
+    - Reset stats (data stored over-time)
+
+## Tech Stack
+### 💾 Software
+- Python 3
+- OpenCV
+- MediaPipe
+- TensorFlow (optional for model extensions)
+- PySerial
+
+### ⚙️ Hardware
+- ESP8266 (NodeMCU)
+- SSD1306 OLED (I2C, 128x64)
+- Push buttons (x2)
+- LEDs (red, yellow, green)
+- Resistors (3x 330 ohms)
+
+## 📁 Project Structure
+
+```text
+
+DashSentinel/
+├── run_dashsentinel.py        # main entrypoint for execution
+│
+├── src/                       # core application logic
+│   ├── app.py                 # main app orchestration
+│   ├── features.py            # feature extraction (ear, yawning, etc.)
+│   ├── model.py               # scoring / detection logic
+│   └── serial.py              # esp8266 communication layer
+│
+├── DisplayModule/             # esp8266 firmware (platformio project)
+│   └── src/
+│       └── main.cpp           # oled, leds, buttons logic
+│
+├── nodemcu_carrier_pcb/       # hardware design (KiCad)
+│
+├── data/                      # runtime-generated data
+│   └── driver_profile.json    # user-specific baseline + stats
+│
+├── requirements.txt           # python dependencies
+└── README.md                  # project documentation
+
+```
 
 ## Install
 ```bash
 pip install -r requirements.txt
-```
-
-## Run with UI
-```bash
-python3 run_dashsentinel.py --show-ui --mirror
 ```
 
 ## Run headless
@@ -39,11 +89,7 @@ python3 run_dashsentinel.py --headless --log-csv
 python3 run_dashsentinel.py --show-ui --draw-landmarks --refine-landmarks
 ```
 
-## Notes
-- Data and logs are written to `./data` and `./logs` by default.
-
-
-## Startupu Baseline
+## Startup Baseline
 - on launch, the app builds a personal baseline from the current user's face and normal behavior
 - it waits for enough clean frames with a neutral face and normal posture
 - once that baseline is collected, it switches into normal sleepy / alert detection
@@ -54,32 +100,7 @@ python3 run_dashsentinel.py --show-ui --draw-landmarks --refine-landmarks
 python3 run_dashsentinel.py --show-ui --mirror --rebuild-baseline-on-start
 ```
 
-
-## ESP8266 USB serial telemetry
-
-DashSentinel can send the live driver status, attentiveness score, and drowsy score to an ESP8266/ESP32 connected over USB.
-
-Install dependency:
-
-```bash
-pip install pyserial
-```
-
-Run with serial enabled and select your port with ```--esp-port```:
-
-```bash
-python3 run_dashsentinel.py --show-ui --mirror --enable-esp-serial --esp-port /dev/ttyUSB0
-```
-
-
-Serial line format sent to the ESP:
-
-```text
-STATUS,ATTENTIVENESS,DROWSY_SCORE
-```
-
-Example:
-
-```text
-ALERT,87.4,0.123
-```
+## 🚀 Future Improvements
+- Replace heuristic model with trained ML model
+- Mobile app integration
+- Full standalone embedded unit (dashcam form factor)
