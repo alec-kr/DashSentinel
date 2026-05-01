@@ -8,6 +8,19 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# kicad temporary files
+*.kicad_sch-bak
+*.kicad_pcb-bak
+*.bak
+*.lock
+*.lck
+*.kicad_prl
+fp-info-cache
+_autosave-*
+*test-backups*
+*-backups/*
+*.history*
+
 # C extensions
 *.so
 
