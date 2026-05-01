@@ -1,6 +1,6 @@
 # 🚗 DashSentinel
 
-Real-time Driver Drowsiness Detection System with Embedded Feedback Interface
+**Real-time Driver Drowsiness Detection System with Embedded Feedback Interface**
 
 ## Overview
 
@@ -65,6 +65,8 @@ DashSentinel/
 │       └── main.cpp           # oled, leds, buttons logic
 │
 ├── nodemcu_carrier_pcb/       # hardware design (KiCad)
+|
+├── schematic/                 # schematic for all connections
 │
 ├── data/                      # runtime-generated data
 │   └── driver_profile.json    # user-specific baseline + stats
@@ -74,28 +76,37 @@ DashSentinel/
 
 ```
 
-## Install
+## Install requirements
 ```bash
 pip install -r requirements.txt
 ```
 
-## Run headless
+## ▶️ Run the Project
+
+### With UI and ESP8266 Interface
 ```bash
-python3 run_dashsentinel.py --headless --log-csv
+python3 run_dashsentinel.py --show-ui --draw-landmarks --enable-esp-serial --esp-port /dev/ttyUSB0
 ```
 
-## Optional flags
+### Headless mode (logging enabled)
+```bash
+python3 run_dashsentinel.py --headless --log-csv --enable-esp-serial --esp-port /dev/ttyUSB0
+```
+
+### Optional flags (see ```src/cli.py``` for full list of options)
 ```bash
 python3 run_dashsentinel.py --show-ui --draw-landmarks --refine-landmarks
 ```
 
-## Startup Baseline
-- on launch, the app builds a personal baseline from the current user's face and normal behavior
-- it waits for enough clean frames with a neutral face and normal posture
-- once that baseline is collected, it switches into normal sleepy / alert detection
-- use `--rebuild-baseline-on-start` if you want to ignore the saved profile and rebuild from scratch
+## Startup Calibration
+At startup:
+- system learns user-specific facial metrics
+- establishes baseline EAR and behavior
 
-### Example
+## Reset options
+- Hardware button → reset baseline
+- CLI flag → rebuild baseline at launch
+
 ```bash
 python3 run_dashsentinel.py --show-ui --mirror --rebuild-baseline-on-start
 ```
