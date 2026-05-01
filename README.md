@@ -70,6 +70,8 @@ DashSentinel/
 │
 ├── data/                      # runtime-generated data
 │   └── driver_profile.json    # user-specific baseline + stats
+|
+├── media/                     # Images showing the system in operation
 │
 ├── requirements.txt           # python dependencies
 └── README.md                  # project documentation
@@ -80,6 +82,7 @@ DashSentinel/
 ```bash
 pip install -r requirements.txt
 ```
+
 
 ## ▶️ Run the Project
 
