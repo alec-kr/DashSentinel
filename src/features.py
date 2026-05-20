@@ -200,6 +200,7 @@ class FeatureExtractor:
         self.head_tilt_frames = 0
         self.head_back_frames = 0
 
+    # pylint: disable=too-many-locals
     def _visibility_features(self, landmarks, w, h, face_bbox):
         left_eye_visible, left_eye_conf = _landmark_group_visible(landmarks, LEFT_EYE, w, h)
         right_eye_visible, right_eye_conf = _landmark_group_visible(landmarks, RIGHT_EYE, w, h)
@@ -233,7 +234,7 @@ class FeatureExtractor:
             "face_area_ratio": float(face_area_ratio),
         }
 
-    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements,too-many-arguments,too-many-positional-arguments
     def extract(
         self,
         landmarks,

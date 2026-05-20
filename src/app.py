@@ -380,6 +380,7 @@ class DashSentinelApp:
             )
 
     # during baseline phase, only use frames where the driver is looking at the camera neutrally
+    # pylint: disable=chained-comparison
     def _feature_is_valid_for_baseline(self, features):
         return (
             features.get("frame_usable", 1.0) >= 0.5
@@ -486,7 +487,7 @@ class DashSentinelApp:
         # reset extractor to start fresh for active phase
         self.extractor.reset()
 
-    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements,too-many-nested-blocks
     def run(self):
         """main loop to process video frames, extract features, 
         compute scores, log events, and handle telemetry"""

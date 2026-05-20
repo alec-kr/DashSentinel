@@ -60,6 +60,7 @@ def crop_bbox(frame, bbox):
     return frame[y1:y2, x1:x2]
 
 
+# pylint: disable=too-many-locals
 def choose_driver_face(face_landmarks, width, height):
     """Pick the most likely driver face from one or more detected faces.
 

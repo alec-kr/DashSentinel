@@ -47,7 +47,8 @@ DEFAULT_FRAME_QUALITY = FrameQuality(
 )
 
 def _brightness_score(brightness, min_brightness, max_brightness):
-    """Calculate a brightness score between 0 and 1 based on how the brightness compares to thresholds."""
+    """Calculate a brightness score between 0 and 1 
+    based on how the brightness compares to thresholds."""
     if brightness < min_brightness:
         return clamp(brightness / max(min_brightness, 1.0), 0.0, 1.0)
 
@@ -57,8 +58,9 @@ def _brightness_score(brightness, min_brightness, max_brightness):
 
     return 1.0
 
-
-def _quality_reasons(brightness, contrast, blur, min_brightness, max_brightness, min_contrast, min_blur):
+# pylint: disable=too-many-arguments
+def _quality_reasons(brightness, contrast, blur, min_brightness, 
+                     max_brightness, min_contrast, min_blur):
     """Generate a list of reasons why a frame might be considered low quality."""
     reasons = []
 
@@ -113,5 +115,5 @@ def measure_frame_quality(
         blur=blur,
         score=float(score),
         usable=not reasons,
-        reason="; ".join(reasons) if reasons else "ok",
+        reason="; ".join(reasons) if reasons else "ok"
     )

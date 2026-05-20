@@ -185,7 +185,7 @@ class AdaptiveScorer:
             phase="ACTIVE" if not self.in_calibration() else "CALIBRATING",
         )
 
-    # pylint: disable=too-many-locals,too-many-branches
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def score(self, features: dict) -> ScoreOutput:
         """main scoring function that compares current features to the profile"""
         self.no_face_frames = 0
@@ -272,6 +272,7 @@ class AdaptiveScorer:
         self.score_history.append(drowsy_score)
         smoothed_score = sum(self.score_history) / len(self.score_history)
 
+        # pylint: disable=chained-comparison
         stable_alert = (
             smoothed_score < 0.24
             and features.get("frame_usable", 1.0) >= 0.5
