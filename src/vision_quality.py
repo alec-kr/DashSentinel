@@ -58,8 +58,8 @@ def _brightness_score(brightness, min_brightness, max_brightness):
 
     return 1.0
 
-# pylint: disable=too-many-arguments
-def _quality_reasons(brightness, contrast, blur, min_brightness, 
+# pylint: disable=too-many-arguments, too-many-positional-arguments
+def _quality_reasons(brightness, contrast, blur, min_brightness,
                      max_brightness, min_contrast, min_blur):
     """Generate a list of reasons why a frame might be considered low quality."""
     reasons = []

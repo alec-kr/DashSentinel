@@ -579,6 +579,7 @@ class DashSentinelApp:
                                 score = self.scorer.score(features)
 
                                 # draw landmarks with --draw-landmarks for debugging
+                                # pylint: disable=unsubscriptable-object
                                 if self.args.draw_landmarks:
                                     x1, y1, x2, y2 = face_selection.bbox
                                     cv2.rectangle(
