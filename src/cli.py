@@ -13,6 +13,7 @@ def parse_args():
     parser.add_argument("--height", type=int, default=360)
     parser.add_argument("--camera-fps", type=int, default=20)
     parser.add_argument("--process-every-n-frames", type=int, default=1)
+    parser.add_argument("--max-faces", type=int, default=3)
     parser.add_argument("--mirror", action="store_true")
 
     parser.add_argument(
@@ -35,12 +36,32 @@ def parse_args():
     parser.add_argument("--drowsy-threshold", type=float, default=0.58)
     parser.add_argument("--status-hold-frames", type=int, default=10)
     parser.add_argument("--no-face-hold-frames", type=int, default=18)
+    parser.add_argument("--low-quality-hold-frames", type=int, default=8)
     parser.add_argument("--attention-window", type=int, default=240)
 
     parser.add_argument("--min-detection-confidence", type=float, default=0.5)
     parser.add_argument("--min-tracking-confidence", type=float, default=0.5)
     parser.add_argument("--refine-landmarks", action="store_true")
     parser.add_argument("--draw-landmarks", action="store_true")
+
+    parser.add_argument("--min-frame-brightness", type=float, default=35.0)
+    parser.add_argument("--max-frame-brightness", type=float, default=225.0)
+    parser.add_argument("--min-frame-contrast", type=float, default=18.0)
+    parser.add_argument("--min-frame-blur", type=float, default=45.0)
+
+    parser.add_argument(
+        "--local-model-path",
+        type=str,
+        default=None,
+        help="optional local ONNX DMS classifier; no cloud calls are made",
+    )
+    parser.add_argument("--local-model-input-size", type=int, default=224)
+    parser.add_argument("--min-model-confidence", type=float, default=0.55)
+    parser.add_argument(
+        "--require-local-model",
+        action="store_true",
+        help="fail fast if --local-model-path is missing or cannot be loaded",
+    )
 
     parser.add_argument("--show-ui", action="store_true")
     parser.add_argument("--headless", action="store_true")

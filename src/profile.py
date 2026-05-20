@@ -68,7 +68,9 @@ class DriverProfile:
 
     def save(self):
         """save profile to disk"""
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        parent = os.path.dirname(self.path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
         with open(self.path, "w", encoding="utf-8") as f:
             json.dump({
                 "sessions": self.sessions,

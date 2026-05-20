@@ -14,12 +14,15 @@ import cv2
 import mediapipe as mp
 
 from .constants import LEFT_EYE, MOUTH_BOTTOM, MOUTH_TOP, NOSE_TIP, RIGHT_EYE
+from .face_selection import choose_driver_face, crop_bbox, expand_bbox
 from .features import FeatureExtractor, enhance_lighting
+from .local_model import LocalDMSModel
 from .logging_utils import EventLogger
 from .profile import DriverProfile
 from .scoring import AdaptiveScorer, ScoreOutput
 from .serial_telemetry import SerialTelemetry
 from .utils import now_ts
+from .vision_quality import measure_frame_quality
 
 # pylint: disable=too-many-instance-attributes,too-few-public-methods
 class DashSentinelApp:
@@ -52,7 +55,24 @@ class DashSentinelApp:
             drowsy_threshold=args.drowsy_threshold,
             status_hold_frames=args.status_hold_frames,
             no_face_hold_frames=args.no_face_hold_frames,
+            low_quality_hold_frames=args.low_quality_hold_frames,
+            min_model_confidence=args.min_model_confidence,
         )
+
+
+        # optional local deep-learning model for landmark + model fusion
+        self.local_model = LocalDMSModel(
+            model_path=getattr(args, "local_model_path", None),
+            input_size=getattr(args, "local_model_input_size", 224),
+        )
+        if getattr(args, "require_local_model", False) and not self.local_model.available:
+            reason = self.local_model.load_error or "no --local-model-path provided"
+            raise RuntimeError(f"Local model required but unavailable: {reason}")
+        if getattr(args, "local_model_path", None) and not self.local_model.available:
+            print(
+                "[model] local model unavailable; "
+                f"landmarks-only mode: {self.local_model.load_error}"
+            )
 
         # setup the logger to record events and features
         self.logger = EventLogger(args.log_path, args.log_csv)
@@ -79,7 +99,7 @@ class DashSentinelApp:
         signal.signal(signal.SIGINT, self._handle_signal)
         signal.signal(signal.SIGTERM, self._handle_signal)
 
-    def _handle_signal(self):
+    def _handle_signal(self, _signum=None, _frame=None):
         self.running = False
 
     # helper method to open the camera with the specified settings
@@ -223,11 +243,38 @@ class DashSentinelApp:
                 (220, 220, 220),
                 2,
             )
+            cv2.putText(
+                frame,
+                (
+                    f"quality: {features.get('frame_quality', 1.0):.2f} "
+                    f"eyes: {int(features.get('eyes_visible', 1.0))} "
+                    f"mouth: {int(features.get('mouth_visible', 1.0))} "
+                    f"faces: {features.get('face_count', 1)}"
+                ),
+                (18, 330),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.50,
+                (220, 220, 220),
+                2,
+            )
+            if features.get("model_label") not in (None, "unavailable"):
+                cv2.putText(
+                    frame,
+                    (
+                        f"model: {features.get('model_label')} "
+                        f"conf: {features.get('model_confidence', 0.0):.2f}"
+                    ),
+                    (18, 356),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.50,
+                    (220, 220, 220),
+                    2,
+                )
         # show profile update count and FPS for debugging and performance monitoring
         cv2.putText(
             frame,
             f"profile updates: {self.profile.total_updates}",
-            (18, 330),
+            (18, 382),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.50,
             (200, 200, 200),
@@ -236,7 +283,7 @@ class DashSentinelApp:
         cv2.putText(
             frame,
             f"fps: {fps:.1f}",
-            (18, 354),
+            (18, 406),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.50,
             (180, 180, 180),
@@ -246,7 +293,7 @@ class DashSentinelApp:
             cv2.putText(
                 frame,
                 "press q to quit",
-                (18, 378),
+                (18, 430),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.50,
                 (180, 180, 180),
@@ -335,7 +382,11 @@ class DashSentinelApp:
     # during baseline phase, only use frames where the driver is looking at the camera neutrally
     def _feature_is_valid_for_baseline(self, features):
         return (
-            features["closed_frames_norm"] < 0.15
+            features.get("frame_usable", 1.0) >= 0.5
+            and features.get("eyes_visible", 1.0) >= 0.5
+            and features.get("mouth_visible", 1.0) >= 0.5
+            and features.get("visibility_score", 1.0) >= 0.70
+            and features["closed_frames_norm"] < 0.15
             and features["yawn_flag"] < 0.5
             and features["posture_flag"] < 0.5
         )
@@ -371,6 +422,13 @@ class DashSentinelApp:
             frame = cv2.resize(
                 frame, (self.args.width, self.args.height), interpolation=cv2.INTER_AREA
             )
+            frame_quality = measure_frame_quality(
+                frame,
+                min_brightness=self.args.min_frame_brightness,
+                max_brightness=self.args.max_frame_brightness,
+                min_contrast=self.args.min_frame_contrast,
+                min_blur=self.args.min_frame_blur,
+            )
             enhanced = enhance_lighting(frame)
             display_frame = enhanced.copy()
             fps = self._update_fps()
@@ -382,14 +440,22 @@ class DashSentinelApp:
             # reset features unless we get face features in this frame
             features = None
 
-            # only use frames with detected face and valid features
+            # only use frames with detected driver face and valid features
             if results.multi_face_landmarks:
-                landmarks = results.multi_face_landmarks[0].landmark
                 h, w = enhanced.shape[:2]
-                features = self.extractor.extract(landmarks, w, h)
-                if self._feature_is_valid_for_baseline(features):
-                    self.profile.update_from_alert_frame(features)
-                    self.baseline_frames_collected += 1
+                face_selection = choose_driver_face(results.multi_face_landmarks, w, h)
+                if face_selection is not None:
+                    landmarks = face_selection.landmarks
+                    features = self.extractor.extract(
+                        landmarks,
+                        w,
+                        h,
+                        frame_quality=frame_quality,
+                        face_selection=face_selection,
+                    )
+                    if self._feature_is_valid_for_baseline(features):
+                        self.profile.update_from_alert_frame(features)
+                        self.baseline_frames_collected += 1
 
             # show overlay with progress during baseline phase, or print to console
             elapsed = time.time() - self.baseline_started_at
@@ -431,7 +497,7 @@ class DashSentinelApp:
         try:
             # create the facemesh object
             with mp_face_mesh.FaceMesh(
-                max_num_faces=1,
+                max_num_faces=max(1, self.args.max_faces),
                 refine_landmarks=self.args.refine_landmarks,
                 min_detection_confidence=self.args.min_detection_confidence,
                 min_tracking_confidence=self.args.min_tracking_confidence,
@@ -454,7 +520,15 @@ class DashSentinelApp:
                         (self.args.width, self.args.height),
                         interpolation=cv2.INTER_AREA,
                     )
-                    # lighting enhancement for varying light conditions
+                    # quality check before any scoring; enhancement helps detection but
+                    # the quality gate still sees the raw camera frame.
+                    frame_quality = measure_frame_quality(
+                        frame,
+                        min_brightness=self.args.min_frame_brightness,
+                        max_brightness=self.args.max_frame_brightness,
+                        min_contrast=self.args.min_frame_contrast,
+                        min_blur=self.args.min_frame_blur,
+                    )
                     enhanced = enhance_lighting(frame)
 
                     display_frame = enhanced.copy()
@@ -482,33 +556,53 @@ class DashSentinelApp:
                         rgb = cv2.cvtColor(enhanced, cv2.COLOR_BGR2RGB)
                         results = face_mesh.process(rgb)
                         if results.multi_face_landmarks:
-                            landmarks = results.multi_face_landmarks[0].landmark
                             h, w = enhanced.shape[:2]
-                            features = self.extractor.extract(landmarks, w, h)
-                            score = self.scorer.score(features)
+                            face_selection = choose_driver_face(results.multi_face_landmarks, w, h)
+                            if face_selection is None:
+                                self.extractor.reset()
+                                score = self.scorer.update_no_face()
+                            else:
+                                landmarks = face_selection.landmarks
+                                face_crop = crop_bbox(
+                                    enhanced, expand_bbox(face_selection.bbox, w, h)
+                                )
+                                model_output = self.local_model.predict(face_crop)
+                                features = self.extractor.extract(
+                                    landmarks,
+                                    w,
+                                    h,
+                                    frame_quality=frame_quality,
+                                    face_selection=face_selection,
+                                    model_output=model_output,
+                                )
+                                score = self.scorer.score(features)
 
-                            # draw landmarks with flag --draw-landmarks for debugging/visualization
-                            if self.args.draw_landmarks:
-                                for idx in (
-                                    LEFT_EYE
-                                    + RIGHT_EYE
-                                    + [NOSE_TIP, MOUTH_TOP, MOUTH_BOTTOM]
-                                ):
-                                    lm = landmarks[idx]
-                                    x = int(lm.x * w)
-                                    y = int(lm.y * h)
-                                    cv2.circle(
-                                        display_frame, (x, y), 2, (255, 255, 255), -1
+                                # draw landmarks with --draw-landmarks for debugging
+                                if self.args.draw_landmarks:
+                                    x1, y1, x2, y2 = face_selection.bbox
+                                    cv2.rectangle(
+                                        display_frame, (x1, y1), (x2, y2), (255, 255, 255), 1
                                     )
+                                    for idx in (
+                                        LEFT_EYE
+                                        + RIGHT_EYE
+                                        + [NOSE_TIP, MOUTH_TOP, MOUTH_BOTTOM]
+                                    ):
+                                        lm = landmarks[idx]
+                                        x = int(lm.x * w)
+                                        y = int(lm.y * h)
+                                        cv2.circle(
+                                            display_frame, (x, y), 2, (255, 255, 255), -1
+                                        )
 
-                            self.logger.write_periodic(
-                                status=score.status,
-                                confidence=score.confidence,
-                                drowsy_score=score.drowsy_score,
-                                attentiveness=score.attentiveness,
-                                features=features,
-                                every_seconds=1.0,
-                            )
+                                self.logger.write_periodic(
+                                    status=score.status,
+                                    confidence=score.confidence,
+                                    drowsy_score=score.drowsy_score,
+                                    attentiveness=score.attentiveness,
+                                    features=features,
+                                    every_seconds=1.0,
+                                )
                         else:
                             self.extractor.reset()
                             score = self.scorer.update_no_face()

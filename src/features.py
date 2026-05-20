@@ -20,11 +20,14 @@ from .constants import (
     RIGHT_MOUTH,
 )
 from .utils import clamp, euclidean
+from .vision_quality import DEFAULT_FRAME_QUALITY
+
 
 def get_point(landmarks, idx, w, h):
     """convert landmark to pixel coordinates"""
     lm = landmarks[idx]
     return np.array([lm.x * w, lm.y * h], dtype=np.float32)
+
 
 def eye_aspect_ratio(landmarks, eye_indices, w, h):
     """Get eye aspect ratio for given eye landmarks."""
@@ -43,6 +46,7 @@ def eye_aspect_ratio(landmarks, eye_indices, w, h):
 
     return (vertical_1 + vertical_2) / (2.0 * horizontal)
 
+
 def mouth_aspect_ratio(landmarks, w, h):
     """get mouth aspect ratio for given mouth landmarks"""
     top = get_point(landmarks, MOUTH_TOP, w, h)
@@ -59,6 +63,7 @@ def mouth_aspect_ratio(landmarks, w, h):
 
     # higher ratio indicates mouth is more open.
     return vertical / horizontal
+
 
 def estimate_head_pose(landmarks, w, h):
     """estimate head pose: roll, yaw, and pitch."""
@@ -92,6 +97,7 @@ def estimate_head_pose(landmarks, w, h):
 
     return float(roll_deg), float(yaw_ratio), float(pitch_ratio)
 
+
 def enhance_lighting(frame):
     """enhance lighting and contrast of the input frame using CLAHE and gamma correction"""
     # convert image color space (bgr <-> rgb/lab)
@@ -105,13 +111,44 @@ def enhance_lighting(frame):
     enhanced = cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
     gamma = 1.12
     table = np.array(
-        [
-            (i / 255.0) ** (1.0 / gamma) * 255 for i in np.arange(256)
-        ]
+        [(i / 255.0) ** (1.0 / gamma) * 255 for i in np.arange(256)]
     ).astype("uint8")
     enhanced = cv2.LUT(enhanced, table)
     enhanced = cv2.bilateralFilter(enhanced, 5, 35, 35)
     return enhanced
+
+
+def _landmark_group_visible(landmarks, indices, width, height, min_width_ratio=0.025):
+    """Estimate whether a landmark group is visible enough to trust.
+
+    MediaPipe FaceMesh often has no useful visibility score, so this combines
+    in-frame checks and minimum landmark spread. This is not a perfect occlusion
+    detector, but it prevents obvious out-of-frame/too-small landmark failures
+    from driving eye or mouth decisions.
+    """
+    pts = [get_point(landmarks, idx, width, height) for idx in indices]
+    if not pts:
+        return False, 0.0
+
+    xs = [float(point[0]) for point in pts]
+    ys = [float(point[1]) for point in pts]
+    margin_x = width * 0.015
+    margin_y = height * 0.015
+    in_frame = [
+        margin_x <= x <= width - margin_x and margin_y <= y <= height - margin_y
+        for x, y in zip(xs, ys)
+    ]
+    in_frame_ratio = sum(in_frame) / len(in_frame)
+    spread_ratio = (max(xs) - min(xs)) / max(float(width), 1.0)
+    spread_ok = spread_ratio >= min_width_ratio
+
+    confidence = clamp(
+        0.70 * in_frame_ratio + 0.30 * clamp(spread_ratio / min_width_ratio, 0, 1),
+        0,
+        1,
+    )
+    return bool(in_frame_ratio >= 0.90 and spread_ok), float(confidence)
+
 
 # pylint: disable=too-many-instance-attributes
 class FeatureExtractor:
@@ -132,6 +169,8 @@ class FeatureExtractor:
         self.mouth_open_frames = 0
         self.last_yawn_time = 0.0
         self.yawn_count = 0
+        self.last_ear = 0.28
+        self.last_mar = 0.16
 
         # for head motion
         self.mar_history = deque(maxlen=30)
@@ -153,7 +192,6 @@ class FeatureExtractor:
         self.yaw_history.clear()
         self.pitch_history.clear()
 
-
         self.eye_closed = False
         self.closed_frames = 0
         self.mouth_open_frames = 0
@@ -162,54 +200,115 @@ class FeatureExtractor:
         self.head_tilt_frames = 0
         self.head_back_frames = 0
 
-    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
-    def extract(self, landmarks, w, h):
-        """compute features from face landmarks (ear, mar, blink, pose)"""
-        # compute eye aspect ratio to detect eye closure
-        left_ear = eye_aspect_ratio(landmarks, LEFT_EYE, w, h)
-        right_ear = eye_aspect_ratio(landmarks, RIGHT_EYE, w, h)
-        ear = (left_ear + right_ear) / 2.0
-        self.ear_history.append(ear)
+    def _visibility_features(self, landmarks, w, h, face_bbox):
+        left_eye_visible, left_eye_conf = _landmark_group_visible(landmarks, LEFT_EYE, w, h)
+        right_eye_visible, right_eye_conf = _landmark_group_visible(landmarks, RIGHT_EYE, w, h)
+        mouth_visible, mouth_conf = _landmark_group_visible(
+            landmarks,
+            [LEFT_MOUTH, RIGHT_MOUTH, MOUTH_TOP, MOUTH_BOTTOM],
+            w,
+            h,
+            min_width_ratio=0.035,
+        )
 
-        # compute eye aspect ratio to detect eye closure
-        ear_smoothed = sum(self.ear_history) / len(self.ear_history)
+        face_area_ratio = 0.0
+        if face_bbox is not None:
+            x1, y1, x2, y2 = face_bbox
+            face_area_ratio = clamp(((x2 - x1) * (y2 - y1)) / max(float(w * h), 1.0), 0.0, 1.0)
+
+        face_large_enough = face_area_ratio >= 0.035
+        eyes_visible = left_eye_visible and right_eye_visible and face_large_enough
+        landmark_visibility = (left_eye_conf + right_eye_conf + mouth_conf) / 3.0
+        visibility_score = clamp(
+            0.60 * landmark_visibility + 0.40 * clamp(face_area_ratio / 0.12, 0.0, 1.0), 0.0, 1.0
+        )
+
+        return {
+            "eyes_visible": float(1.0 if eyes_visible else 0.0),
+            "mouth_visible": float(1.0 if mouth_visible and face_large_enough else 0.0),
+            "left_eye_visible": float(1.0 if left_eye_visible else 0.0),
+            "right_eye_visible": float(1.0 if right_eye_visible else 0.0),
+            "landmark_visibility": float(landmark_visibility),
+            "visibility_score": float(visibility_score),
+            "face_area_ratio": float(face_area_ratio),
+        }
+
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    def extract(
+        self,
+        landmarks,
+        w,
+        h,
+        frame_quality=None,
+        face_selection=None,
+        model_output=None,
+    ):
+        """compute features from face landmarks (ear, mar, blink, pose)"""
+        frame_quality = frame_quality or DEFAULT_FRAME_QUALITY
+        model_output = model_output or {}
+        face_bbox = face_selection.bbox if face_selection is not None else None
+        visibility = self._visibility_features(landmarks, w, h, face_bbox)
+        eyes_visible = visibility["eyes_visible"] >= 0.5
+        mouth_visible = visibility["mouth_visible"] >= 0.5
 
         # current timestamp used for fps or timing logic
         now = time.time()
 
-        # if the smoothed EAR is below the threshold, consider the eye closed
-        if ear_smoothed < self.ear_threshold:
-            if not self.eye_closed:
-                self.eye_closed = True
-            self.closed_frames += 1
+        # compute eye aspect ratio only when eyes are visible enough to trust
+        if eyes_visible:
+            left_ear = eye_aspect_ratio(landmarks, LEFT_EYE, w, h)
+            right_ear = eye_aspect_ratio(landmarks, RIGHT_EYE, w, h)
+            ear = (left_ear + right_ear) / 2.0
+            self.last_ear = ear
+            self.ear_history.append(ear)
+            ear_smoothed = sum(self.ear_history) / len(self.ear_history)
+
+            if ear_smoothed < self.ear_threshold:
+                if not self.eye_closed:
+                    self.eye_closed = True
+                self.closed_frames += 1
+            else:
+                if self.eye_closed:
+                    self.blink_timestamps.append(now)
+                    self.eye_closed = False
+                self.closed_frames = max(0, self.closed_frames - 2)
         else:
-            if self.eye_closed:
-                self.blink_timestamps.append(now)
-                self.eye_closed = False
-            self.closed_frames = max(0, self.closed_frames - 2)
+            ear_smoothed = self.last_ear
+            self.eye_closed = False
+            self.closed_frames = max(0, self.closed_frames - 3)
 
         # remove old blink timestamps beyond 60 seconds to compute recent blink rate
         while self.blink_timestamps and now - self.blink_timestamps[0] > 60:
             self.blink_timestamps.popleft()
-        blink_rate = float(len(self.blink_timestamps))
+        blink_rate = float(len(self.blink_timestamps)) if eyes_visible else 0.0
 
-        # compute mouth aspect ratio to detect yawning
-        mar = mouth_aspect_ratio(landmarks, w, h)
-        if mar > self.yawn_mar_threshold:
-            self.mouth_open_frames += 1
-        else:
-            if (
-                self.mouth_open_frames >= self.yawn_frames_threshold
-                and now - self.last_yawn_time > 2.0
-            ):
-                self.yawn_count += 1
-                self.last_yawn_time = now
+        # compute mouth aspect ratio only when mouth is visible enough to trust
+        if mouth_visible:
+            mar = mouth_aspect_ratio(landmarks, w, h)
+            self.last_mar = mar
+            self.mar_history.append(mar)
+            mar_smoothed = sum(self.mar_history) / len(self.mar_history)
+            if mar_smoothed > self.yawn_mar_threshold:
+                self.mouth_open_frames += 1
+            else:
+                if (
+                    self.mouth_open_frames >= self.yawn_frames_threshold
+                    and now - self.last_yawn_time > 2.0
+                ):
+                    self.yawn_count += 1
+                    self.last_yawn_time = now
                 self.mouth_open_frames = 0
+        else:
+            mar_smoothed = self.last_mar
+            self.mouth_open_frames = max(0, self.mouth_open_frames - 3)
 
         # head pose estimation to detect posture issues (looking away, tilting, etc.)
-        yawn_flag = 1.0 if self.mouth_open_frames >= self.yawn_frames_threshold else 0.0
+        yawn_flag = (
+            1.0
+            if mouth_visible and self.mouth_open_frames >= self.yawn_frames_threshold
+            else 0.0
+        )
         roll_deg, yaw_ratio, pitch_ratio = estimate_head_pose(landmarks, w, h)
-
 
         self.roll_history.append(roll_deg)
         self.yaw_history.append(yaw_ratio)
@@ -251,12 +350,11 @@ class FeatureExtractor:
         head_back_norm = clamp(self.head_back_frames / 18.0, 0.0, 1.0)
 
         posture_flag = 1.0 if self.bad_pose_frames >= 8 else 0.0
-
         closed_frames_norm = clamp(self.closed_frames / 30.0, 0.0, 1.0)
 
-        return {
+        features = {
             "ear": float(ear_smoothed),
-            "mar": float(mar),
+            "mar": float(mar_smoothed),
             "blink_rate": float(blink_rate),
             "closed_frames_norm": float(closed_frames_norm),
             "yawn_flag": float(yawn_flag),
@@ -273,6 +371,17 @@ class FeatureExtractor:
             "head_tilted": float(1.0 if head_tilted else 0.0),
             "head_back_or_down": float(1.0 if head_back_or_down else 0.0),
         }
+        features.update(visibility)
+        features.update(frame_quality.as_features())
+        if face_selection is not None:
+            features.update(face_selection.as_features())
+        else:
+            features.update({"face_count": 1, "selected_face_index": 0, "selected_face_area": 0.0})
+        features.update(model_output)
+        features.setdefault("model_drowsy_score", None)
+        features.setdefault("model_confidence", 0.0)
+        features.setdefault("model_label", "unavailable")
+        return features
 
     def reset_stats(self):
         """resets all states/counters"""

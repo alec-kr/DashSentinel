@@ -125,6 +125,12 @@ void drawDisplay() {
   if (currentStatus == "LEARNING BASELINE") {
     display.print("LEARNING");
   }
+  else if (currentStatus == "VISION DEGRADED") {
+    display.print("VISION");
+    display.setTextSize(1);
+    display.setCursor(0, 42);
+    display.print("DEGRADED");
+  }
   else {
     display.println(currentStatus);
   }
@@ -163,7 +169,7 @@ void parseLine(String line) {
   else if (currentStatus == "LEARNING BASELINE") {
     setLedMode(LED_BASELINE);
   }
-  else if (currentStatus == "WARNING") {
+  else if (currentStatus == "WARNING" || currentStatus == "VISION DEGRADED") {
     setLedMode(LED_WARNING);
   } 
   else if (currentStatus == "DROWSY") {
