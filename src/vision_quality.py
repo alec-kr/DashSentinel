@@ -46,6 +46,33 @@ DEFAULT_FRAME_QUALITY = FrameQuality(
     reason="ok",
 )
 
+def _brightness_score(brightness, min_brightness, max_brightness):
+    """Calculate a brightness score between 0 and 1 based on how the brightness compares to thresholds."""
+    if brightness < min_brightness:
+        return clamp(brightness / max(min_brightness, 1.0), 0.0, 1.0)
+
+    if brightness > max_brightness:
+        denominator = max(255.0 - max_brightness, 1.0)
+        return clamp((255.0 - brightness) / denominator, 0.0, 1.0)
+
+    return 1.0
+
+
+def _quality_reasons(brightness, contrast, blur, min_brightness, max_brightness, min_contrast, min_blur):
+    """Generate a list of reasons why a frame might be considered low quality."""
+    reasons = []
+
+    if brightness < min_brightness:
+        reasons.append("poor lighting: too dark")
+    if brightness > max_brightness:
+        reasons.append("poor lighting: overexposed")
+    if contrast < min_contrast:
+        reasons.append("low contrast")
+    if blur < min_blur:
+        reasons.append("unclear/blurry frame")
+
+    return reasons
+
 
 def measure_frame_quality(
     frame,
@@ -54,49 +81,37 @@ def measure_frame_quality(
     min_contrast=18.0,
     min_blur=45.0,
 ):
-    """Measure brightness, contrast, and blur for a BGR frame.
-
-    Returns a FrameQuality object. The score is intentionally conservative:
-    any one badly degraded dimension pulls down the total score.
-    """
+    """Measure brightness, contrast, and blur for a BGR frame."""
     if frame is None or frame.size == 0:
         return FrameQuality(0.0, 0.0, 0.0, 0.0, False, "empty frame")
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
     brightness = float(np.mean(gray))
     contrast = float(np.std(gray))
     blur = float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
-    too_dark = brightness < min_brightness
-    too_bright = brightness > max_brightness
-    low_contrast = contrast < min_contrast
-    blurry = blur < min_blur
+    score = min(
+        _brightness_score(brightness, min_brightness, max_brightness),
+        clamp(contrast / max(min_contrast, 1.0), 0.0, 1.0),
+        clamp(blur / max(min_blur, 1.0), 0.0, 1.0),
+    )
 
-    brightness_score = 1.0
-    if too_dark:
-        brightness_score = clamp(brightness / max(min_brightness, 1.0), 0.0, 1.0)
-    elif too_bright:
-        brightness_score = clamp((255.0 - brightness) / max(255.0 - max_brightness, 1.0), 0.0, 1.0)
-
-    contrast_score = clamp(contrast / max(min_contrast, 1.0), 0.0, 1.0)
-    blur_score = clamp(blur / max(min_blur, 1.0), 0.0, 1.0)
-    score = float(min(brightness_score, contrast_score, blur_score))
-
-    reasons = []
-    if too_dark:
-        reasons.append("poor lighting: too dark")
-    if too_bright:
-        reasons.append("poor lighting: overexposed")
-    if low_contrast:
-        reasons.append("low contrast")
-    if blurry:
-        reasons.append("unclear/blurry frame")
+    reasons = _quality_reasons(
+        brightness,
+        contrast,
+        blur,
+        min_brightness,
+        max_brightness,
+        min_contrast,
+        min_blur,
+    )
 
     return FrameQuality(
         brightness=brightness,
         contrast=contrast,
         blur=blur,
-        score=score,
+        score=float(score),
         usable=not reasons,
         reason="; ".join(reasons) if reasons else "ok",
     )

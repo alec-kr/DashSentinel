@@ -33,6 +33,7 @@ BASE_FEATURES = {
 
 
 def make_scorer(tmp_path):
+    """Helper to create a scorer with a profile that has seen enough updates"""
     profile = DriverProfile(str(tmp_path / "profile.json"))
     profile.total_updates = 200
     scorer = AdaptiveScorer(
@@ -45,6 +46,7 @@ def make_scorer(tmp_path):
 
 
 def test_low_quality_frame_reports_vision_degraded(tmp_path):
+    """Test that a low quality frame triggers the vision degraded status."""
     scorer = make_scorer(tmp_path)
     features = dict(BASE_FEATURES)
     features.update({
@@ -60,6 +62,7 @@ def test_low_quality_frame_reports_vision_degraded(tmp_path):
 
 
 def test_eye_occlusion_does_not_trigger_eye_closure_score(tmp_path):
+    """Test that eye occlusion does not trigger a high drowsiness score."""
     scorer = make_scorer(tmp_path)
     features = dict(BASE_FEATURES)
     features.update({"eyes_visible": 0.0, "closed_frames_norm": 1.0, "ear": 0.01})
@@ -71,6 +74,7 @@ def test_eye_occlusion_does_not_trigger_eye_closure_score(tmp_path):
 
 
 def test_local_model_can_raise_warning_when_confident(tmp_path):
+    """Test that a confident local model can raise a warning."""
     scorer = make_scorer(tmp_path)
     features = dict(BASE_FEATURES)
     features.update({"model_drowsy_score": 1.0, "model_confidence": 0.95, "model_label": "drowsy"})
